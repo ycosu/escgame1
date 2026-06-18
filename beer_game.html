@@ -2329,9 +2329,7 @@
         }
 
         function createInitialRoleState(role, initialInventory, lagTime) {
-            // Demand originates ONLY from the End User player. Pipelines start empty
-            // (no phantom baseline orders), so nothing flows upstream until the End
-            // User actually places an order, which then ripples up with the lag.
+            // Start with empty pipelines so Round 1 has no in-transit inventory.
             return {
                 role,
                 inventory: Math.max(0, Number(initialInventory || 0)),
