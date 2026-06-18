@@ -1,0 +1,19 @@
+{
+  "totalDays": 10,
+  "lagTime": 1,
+  "initialInventory": 12,
+  "inventoryPenaltyRate": 0.1,
+  "backlogPenaltyRate": 0.3,
+  "teamBacklogPenaltyRate": 0.5,
+  "shocks": [
+    {
+      "round": 2,
+      "lagDelta": 2
+    },
+    {
+      "round": 4,
+      "lagDelta": 3
+    }
+  ],
+  "shockScheduleText": "2:2\n4:3"
+}

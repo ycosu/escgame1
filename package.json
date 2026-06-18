@@ -1,0 +1,17 @@
+{
+  "name": "emergency-supply-chain-realtime",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Socket.IO realtime server for Emergency Supply Chain game",
+  "main": "realtime-server.js",
+  "scripts": {
+    "start": "node realtime-server.js"
+  },
+  "dependencies": {
+    "@socket.io/redis-adapter": "^8.3.0",
+    "cors": "^2.8.5",
+    "express": "^4.19.2",
+    "ioredis": "^5.4.1",
+    "socket.io": "^4.8.1"
+  }
+}
