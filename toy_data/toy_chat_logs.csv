@@ -1,0 +1,7 @@
+"teamName","sender","message","timestamp"
+"Team 1-A","Team 1-A End Users","Demand jumped today, increasing order to 8.","2026-06-18T18:12:00.000Z"
+"Team 1-A","Team 1-A State/Local Hubs","Copy, seeing higher downstream pull. Keeping safety stock.","2026-06-18T18:12:24.000Z"
+"Team 1-A","Team 1-A Regional Hubs","Lead time is elevated this round, expect delayed replenishment.","2026-06-18T18:12:47.000Z"
+"Team 1-C","Team 1-C End Users","Backlog risk. I am ordering above baseline.","2026-06-18T18:25:10.000Z"
+"Team 1-C","Team 1-C Federal Stockpile","Received. Upstream order increased for next cycle.","2026-06-18T18:25:43.000Z"
+"Team 1-C","Team 1-C Regional Hubs","Let us smooth orders after shock day if inventory recovers.","2026-06-18T18:26:09.000Z"
