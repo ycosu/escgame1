@@ -3213,6 +3213,20 @@
                 { role: 'Regional Hubs', prefix: 'regional' },
                 { role: 'Federal Stockpile', prefix: 'federal' }
             ];
+            const roleOrder = new Map(roleColumnDefs.map(({ role }, index) => [role, index]));
+
+            const sortedResults = [...results].sort((left, right) => {
+                const leftRole = roleOrder.has(left.role) ? roleOrder.get(left.role) : Number.POSITIVE_INFINITY;
+                const rightRole = roleOrder.has(right.role) ? roleOrder.get(right.role) : Number.POSITIVE_INFINITY;
+                if (leftRole !== rightRole) return leftRole - rightRole;
+                const leftTeam = `${left.teamNumber || ''}${left.treatmentGroup || ''}`;
+                const rightTeam = `${right.teamNumber || ''}${right.treatmentGroup || ''}`;
+                if (leftTeam !== rightTeam) return leftTeam.localeCompare(rightTeam);
+                const leftParticipant = String(left.participantId || '');
+                const rightParticipant = String(right.participantId || '');
+                if (leftParticipant !== rightParticipant) return leftParticipant.localeCompare(rightParticipant);
+                return String(left.timestamp || '').localeCompare(String(right.timestamp || ''));
+            });
 
             // Export per-person per-round CSV with full-team status columns.
             const headers = [
@@ -3235,7 +3249,7 @@
 
             // Group stored results by run (use timestamp as run identifier)
             const runsByTimestamp = {};
-            results.forEach(stored => {
+            sortedResults.forEach(stored => {
                 const ts = stored.timestamp || '__unknown__';
                 if (!runsByTimestamp[ts]) runsByTimestamp[ts] = [];
                 runsByTimestamp[ts].push(stored);
@@ -3274,7 +3288,7 @@
                 runDayAgg[ts] = dayMap;
             });
 
-            results.forEach(stored => {
+            sortedResults.forEach(stored => {
                 const history = Array.isArray(stored.history) ? stored.history : [];
                 if (history.length === 0) return;
 
