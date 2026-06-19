@@ -4319,73 +4319,64 @@
         }
 
         function endGame() {
-
             const p = game.players.player;
             const cfg = game.adminConfig || getAdminConfig();
-
-            // Create results
-            const results = [{
-                rank: 1,
-                name: p.name,
-                role: p.role,
-                invCost: p.inventoryCost,
-                backCost: p.backorderCost,
-                totalCost: getSafePlayerTotalCost(p)
-            }];
-
-            // Build the per-round history from the SYNCED shared state (every player
-            // receives all four roles' histories via sync), not the local game.history
-            // which is only populated on the Federal player's browser. This makes the
-            // CSV log work for every role and includes full team context.
             const sharedRoleStates = game.sharedTeamState?.roleStates || {};
-            const fullHistory = [];
-            getSequentialRoleOrder().forEach((roleName) => {
-                const roleHistory = Array.isArray(sharedRoleStates[roleName]?.history)
-                    ? sharedRoleStates[roleName].history
-                    : [];
-                roleHistory.forEach((entry) => fullHistory.push({ ...entry, role: entry.role || roleName }));
-            });
-            const historyToStore = fullHistory.length > 0
-                ? fullHistory
-                : game.history.map(entry => ({ ...entry }));
+            const rosterByRole = new Map((game.teamRoster || []).map(member => [member.role, member]));
+            const resultTimestamp = new Date().toISOString();
 
-            const resultRecord = {
-                timestamp: new Date().toISOString(),
-                participantId: game.participantId,
-                name: p.name,
-                role: p.role,
-                teamNumber: game.teamNumber,
-                treatmentGroup: game.treatmentGroup,
-                totalDays: game.totalDays,
-                inventoryCost: Number(p.inventoryCost.toFixed(2)),
-                backorderCost: Number(p.backorderCost.toFixed(2)),
-                totalCost: Number(getSafePlayerTotalCost(p).toFixed(2)),
-                inventoryPenaltyRate: Number((cfg.inventoryPenaltyRate ?? DEFAULT_INVENTORY_PENALTY).toFixed(4)),
-                backlogPenaltyRate: Number((cfg.backlogPenaltyRate ?? DEFAULT_BACKLOG_PENALTY).toFixed(4)),
-                teamBacklogPenaltyRate: Number((cfg.teamBacklogPenaltyRate ?? DEFAULT_TEAM_BACKLOG_PENALTY).toFixed(4)),
-                lagTime: cfg.lagTime,
-                shockScheduleText: cfg.shockScheduleText || serializeShockSchedule(cfg.shocks || []),
-                crtAnswer: game.crtAnswer,
-                crtCorrect: game.crtCorrect,
-                history: historyToStore
-            };
+            const results = getSequentialRoleOrder().map((role, index) => {
+                const state = sharedRoleStates[role] || {};
+                const roleHistory = Array.isArray(state.history) ? state.history : [];
+                const member = rosterByRole.get(role) || {};
+                const inventoryCost = Number(state.inventoryCostTotal || 0);
+                const backorderCost = Number(state.backlogCostTotal || 0);
+                const totalCost = Number(state.totalCost || (inventoryCost + backorderCost + Number(state.shortagePenaltyCost || 0)));
 
-            const stored = getStoredResults();
-            stored.push(resultRecord);
-            saveStoredResults(stored);
+                return {
+                    rank: index + 1,
+                    timestamp: resultTimestamp,
+                    participantId: member.playerId || `${game.participantId || 'team'}_${role.replace(/\s+/g, '_')}`,
+                    name: member.name || `${game.teamName || 'Team'} - ${role}`,
+                    role,
+                    teamNumber: game.teamNumber,
+                    treatmentGroup: game.treatmentGroup,
+                    totalDays: game.totalDays,
+                    inventoryCost: Number(inventoryCost.toFixed(2)),
+                    backorderCost: Number(backorderCost.toFixed(2)),
+                    totalCost: Number(totalCost.toFixed(2)),
+                    inventoryPenaltyRate: Number((cfg.inventoryPenaltyRate ?? DEFAULT_INVENTORY_PENALTY).toFixed(4)),
+                    backlogPenaltyRate: Number((cfg.backlogPenaltyRate ?? DEFAULT_BACKLOG_PENALTY).toFixed(4)),
+                    teamBacklogPenaltyRate: Number((cfg.teamBacklogPenaltyRate ?? DEFAULT_TEAM_BACKLOG_PENALTY).toFixed(4)),
+                    lagTime: cfg.lagTime,
+                    shockScheduleText: cfg.shockScheduleText || serializeShockSchedule(cfg.shocks || []),
+                    crtAnswer: role === p.role ? game.crtAnswer : '',
+                    crtCorrect: role === p.role ? game.crtCorrect : '',
+                    history: roleHistory.map(entry => ({ ...entry, role: entry.role || role }))
+                };
+            }).sort((left, right) => left.rank - right.rank);
 
-            // Persist to the server so the admin can collect every player's result
-            // from one place (each player runs in a separate browser).
-            postResultToServer(resultRecord);
+            const currentPlayerResult = results.find(r => r.role === p.role) || results[0];
+            const shouldPersistAllLogs = p.role === 'Federal Stockpile';
 
+            if (shouldPersistAllLogs) {
+                const stored = getStoredResults();
+                results.forEach(record => stored.push(record));
+                saveStoredResults(stored);
+
+                // Persist one record per role so the admin export can save every player's log.
+                results.forEach(record => postResultToServer(record));
+                game.ended = true;
+            }
 
             // Display podium
             const podium = document.getElementById('podiumDisplay');
             podium.innerHTML = results.map((r, i) => {
                 const medals = ['🥇', '🥈', '🥉'];
+                const medal = medals[i] || '';
                 return `
                     <div class="podium-place podium-gold">
-                        <div class="medal">${medals[i]}</div>
+                        <div class="medal">${medal}</div>
                         <div class="podium-rank">#${r.rank}</div>
                         <div class="podium-name">${r.name}</div>
                         <div class="podium-role">${r.role}</div>
