@@ -38,6 +38,10 @@ app.get('/health', (_req, res) => {
   });
 });
 
+app.get('/', (_req, res) => {
+  res.redirect('/beer_game.html');
+});
+
 // API endpoint to get team roster
 app.get('/api/team/:teamNum/:teamLetter/roster', (req, res) => {
   const { teamNum, teamLetter } = req.params;

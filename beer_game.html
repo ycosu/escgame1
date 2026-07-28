@@ -1821,6 +1821,13 @@
                 </div>
             </div>
 
+            <div id="endScreen" class="screen">
+                <div class="results-container" style="text-align:center;">
+                    <h2>This is the end of the game.</h2>
+                    <p style="font-size:1.1rem;color:#555;">Wait for instructions please.</p>
+                </div>
+            </div>
+
             <!-- Admin Screen -->
             <div id="adminScreen" class="screen">
                 <div class="admin-container">
@@ -1853,6 +1860,10 @@
                                 <div class="form-group">
                                     <label for="adminInitialInventory">Initial Inventory (all roles)</label>
                                     <input type="number" id="adminInitialInventory" min="0" max="1000" value="12">
+                                </div>
+                                <div class="form-group">
+                                    <label for="adminEndowment">Participant Endowment ($)</label>
+                                    <input type="number" id="adminEndowment" min="0" max="1000" step="0.01" value="25">
                                 </div>
                                 <div class="form-group">
                                     <label for="adminInventoryPenalty">Inventory Penalty per Unit/Day ($)</label>
@@ -1953,6 +1964,7 @@
             totalDays: 52,
             lagTime: 1,
             initialInventory: 12,
+            endowment: CRT_ENDOWMENT,
             inventoryPenaltyRate: DEFAULT_INVENTORY_PENALTY,
             backlogPenaltyRate: DEFAULT_BACKLOG_PENALTY,
             teamBacklogPenaltyRate: DEFAULT_TEAM_BACKLOG_PENALTY,
@@ -2030,6 +2042,7 @@
                     totalDays: Math.max(minimumDays, parseInt(parsed.totalDays || defaultAdminConfig.totalDays, 10)),
                     lagTime,
                     initialInventory: Math.max(0, parseInt(parsed.initialInventory ?? defaultAdminConfig.initialInventory, 10) || defaultAdminConfig.initialInventory),
+                    endowment: Math.max(0, Number(parsed.endowment ?? defaultAdminConfig.endowment)),
                     inventoryPenaltyRate: Math.max(0, Number(parsed.inventoryPenaltyRate ?? defaultAdminConfig.inventoryPenaltyRate)),
                     backlogPenaltyRate: Math.max(0, Number(parsed.backlogPenaltyRate ?? defaultAdminConfig.backlogPenaltyRate)),
                     teamBacklogPenaltyRate: Math.max(0, Number(parsed.teamBacklogPenaltyRate ?? defaultAdminConfig.teamBacklogPenaltyRate)),
@@ -2151,8 +2164,13 @@
             return Number(player.getTotalCost()) || 0;
         }
 
+        function getConfiguredEndowment() {
+            const cfg = game.adminConfig || getAdminConfig();
+            return Math.max(0, Number(cfg?.endowment ?? CRT_ENDOWMENT));
+        }
+
         function getRemainingEndowment(player) {
-            return Math.max(0, CRT_ENDOWMENT - getSafePlayerTotalCost(player));
+            return Math.max(0, getConfiguredEndowment() - getSafePlayerTotalCost(player));
         }
 
         function getFinalPayment(player) {
@@ -2254,6 +2272,7 @@
             history: [],
             baseDemand: 4,
             gameStarted: false,
+            ended: false,
             adminConfig: getAdminConfig(),
             participantId: null,
             teamName: null,
@@ -2913,6 +2932,7 @@
                 const totalDaysInput = document.getElementById('adminTotalDays');
                 const lagInput = document.getElementById('adminLagTime');
                 const initialInventoryInput = document.getElementById('adminInitialInventory');
+                const endowmentInput = document.getElementById('adminEndowment');
                 const inventoryPenaltyInput = document.getElementById('adminInventoryPenalty');
                 const backlogPenaltyInput = document.getElementById('adminBacklogPenalty');
                 const teamBacklogPenaltyInput = document.getElementById('adminTeamBacklogPenalty');
@@ -2921,6 +2941,7 @@
                 if (totalDaysInput) totalDaysInput.value = game.adminConfig.totalDays;
                 if (lagInput) lagInput.value = game.adminConfig.lagTime;
                 if (initialInventoryInput) initialInventoryInput.value = game.adminConfig.initialInventory;
+                if (endowmentInput) endowmentInput.value = game.adminConfig.endowment;
                 if (inventoryPenaltyInput) inventoryPenaltyInput.value = game.adminConfig.inventoryPenaltyRate;
                 if (backlogPenaltyInput) backlogPenaltyInput.value = game.adminConfig.backlogPenaltyRate;
                 if (teamBacklogPenaltyInput) teamBacklogPenaltyInput.value = game.adminConfig.teamBacklogPenaltyRate;
@@ -3044,6 +3065,7 @@
             document.getElementById('adminTotalDays').value = cfg.totalDays;
             document.getElementById('adminLagTime').value = cfg.lagTime;
             document.getElementById('adminInitialInventory').value = cfg.initialInventory;
+            document.getElementById('adminEndowment').value = cfg.endowment;
             document.getElementById('adminInventoryPenalty').value = cfg.inventoryPenaltyRate;
             document.getElementById('adminBacklogPenalty').value = cfg.backlogPenaltyRate;
             document.getElementById('adminTeamBacklogPenalty').value = cfg.teamBacklogPenaltyRate;
@@ -3072,6 +3094,7 @@
                 totalDays,
                 lagTime,
                 initialInventory: Math.max(0, parseInt(document.getElementById('adminInitialInventory').value || '0', 10)),
+                endowment: Math.max(0, Number(document.getElementById('adminEndowment').value || CRT_ENDOWMENT)),
                 inventoryPenaltyRate: Math.max(0, Number(document.getElementById('adminInventoryPenalty').value || DEFAULT_INVENTORY_PENALTY)),
                 backlogPenaltyRate: Math.max(0, Number(document.getElementById('adminBacklogPenalty').value || DEFAULT_BACKLOG_PENALTY)),
                 teamBacklogPenaltyRate: Math.max(0, Number(document.getElementById('adminTeamBacklogPenalty').value || DEFAULT_TEAM_BACKLOG_PENALTY)),
@@ -3230,9 +3253,9 @@
 
             // Export per-person per-round CSV with full-team status columns.
             const headers = [
-                'timestamp','participantId','name','role','teamNumber','treatmentGroup','day','demand','order','inventory','backlog','arrived','shipped','inventoryCostDay','backlogCostDay','teamPenaltyDay','totalCostDay',
+                'timestamp','participantId','name','role','teamNumber','treatmentGroup','round','dayIndex','demand','order','inventory','backlog','arrived','shipped','inventoryCostDay','backlogCostDay','teamPenaltyDay','totalCostDay',
                 'teamTotalInventory','teamTotalBacklog','teamInventoryCostDay','teamBacklogCostDay','teamPenaltyDay','teamTotalCostDay',
-                'lagTime','shockScheduleText','crtAnswer','crtCorrect'
+                'effectiveLagTime','baseLagTime','shockScheduleText','endowment','inventoryPenaltyRate','backlogPenaltyRate','teamBacklogPenaltyRate','crtAnswer','crtCorrect'
             ];
             roleColumnDefs.forEach(({ prefix }) => {
                 headers.push(
@@ -3301,11 +3324,13 @@
 
                 roleEntries.forEach(entry => {
                     const day = Number(entry.day);
+                    const round = Number.isFinite(day) ? day + 1 : '';
                     const inventory = Number(entry.inventory || 0);
                     const backlog = Number(entry.backorders || 0);
                     const inventoryPenaltyRate = Math.max(0, Number(stored.inventoryPenaltyRate ?? DEFAULT_INVENTORY_PENALTY));
                     const backlogPenaltyRate = Math.max(0, Number(stored.backlogPenaltyRate ?? DEFAULT_BACKLOG_PENALTY));
                     const teamBacklogPenaltyRate = Math.max(0, Number(stored.teamBacklogPenaltyRate ?? DEFAULT_TEAM_BACKLOG_PENALTY));
+                    const effectiveLagTime = Math.max(1, Number(entry.lagTime || stored.lagTime || 1));
                     const inventoryCostDay = Math.max(0, inventory) * inventoryPenaltyRate;
                     const backlogCostDay = backlog * backlogPenaltyRate;
                     const teamAgg = dayMap[day] || { totalInventory: 0, totalBacklog: 0, endUserBacklog: false, roleStatus: {} };
@@ -3322,6 +3347,7 @@
                         stored.role || '',
                         stored.teamNumber || '',
                         stored.treatmentGroup || '',
+                        round,
                         day,
                         entry.demand ?? '',
                         entry.order ?? '',
@@ -3339,8 +3365,13 @@
                         teamBacklogCostDay.toFixed(2),
                         teamPenaltyDay.toFixed(2),
                         teamTotalCostDay.toFixed(2),
-                        stored.lagTime || '',
+                        effectiveLagTime,
+                        Math.max(1, Number(stored.lagTime || 1)),
                         stored.shockScheduleText || '',
+                        Number(stored.endowment ?? CRT_ENDOWMENT).toFixed(2),
+                        inventoryPenaltyRate.toFixed(4),
+                        backlogPenaltyRate.toFixed(4),
+                        teamBacklogPenaltyRate.toFixed(4),
                         stored.crtAnswer || '',
                         stored.crtCorrect || ''
                     ];
@@ -3418,18 +3449,20 @@
                 .sort((a, b) => Number(a.day) - Number(b.day));
 
             const headers = [
-                'timestamp','participantId','name','role','day','demand','order','inventory','backlog','inventoryCostDay','backlogCostDay','teamPenaltyDay','totalCostDay'
+                'timestamp','participantId','name','role','round','dayIndex','demand','order','inventory','backlog','inventoryCostDay','backlogCostDay','teamPenaltyDay','totalCostDay','effectiveLagTime','baseLagTime','shockScheduleText','endowment','inventoryPenaltyRate','backlogPenaltyRate','teamBacklogPenaltyRate','totalDays'
             ];
 
             const lines = [headers.map(sanitizeCSVValue).join(',')];
 
             roleEntries.forEach(entry => {
                 const day = Number(entry.day);
+                const round = Number.isFinite(day) ? day + 1 : '';
                 const inventory = Number(entry.inventory || 0);
                 const backlog = Number(entry.backorders || 0);
                 const inventoryPenaltyRate = Math.max(0, Number(stored.inventoryPenaltyRate ?? DEFAULT_INVENTORY_PENALTY));
                 const backlogPenaltyRate = Math.max(0, Number(stored.backlogPenaltyRate ?? DEFAULT_BACKLOG_PENALTY));
                 const teamBacklogPenaltyRate = Math.max(0, Number(stored.teamBacklogPenaltyRate ?? DEFAULT_TEAM_BACKLOG_PENALTY));
+                const effectiveLagTime = Math.max(1, Number(entry.lagTime || stored.lagTime || 1));
                 const inventoryCostDay = Math.max(0, inventory) * inventoryPenaltyRate;
                 const backlogCostDay = backlog * backlogPenaltyRate;
                 const teamPenaltyDay = endUserBacklogByDay[day] ? teamBacklogPenaltyRate : 0;
@@ -3440,6 +3473,7 @@
                     stored.participantId || '',
                     stored.name || '',
                     stored.role || '',
+                    round,
                     day,
                     entry.demand ?? '',
                     entry.order ?? '',
@@ -3448,7 +3482,15 @@
                     inventoryCostDay.toFixed(2),
                     backlogCostDay.toFixed(2),
                     teamPenaltyDay.toFixed(2),
-                    totalCostDay.toFixed(2)
+                    totalCostDay.toFixed(2),
+                    effectiveLagTime,
+                    Math.max(1, Number(stored.lagTime || 1)),
+                    stored.shockScheduleText || '',
+                    Number(stored.endowment ?? CRT_ENDOWMENT).toFixed(2),
+                    inventoryPenaltyRate.toFixed(4),
+                    backlogPenaltyRate.toFixed(4),
+                    teamBacklogPenaltyRate.toFixed(4),
+                    Number(stored.totalDays || game.totalDays || 0)
                 ];
 
                 lines.push(row.map(sanitizeCSVValue).join(','));
@@ -4319,6 +4361,9 @@
         }
 
         function endGame() {
+            if (game.ended) return;
+            game.ended = true;
+
             const p = game.players.player;
             const cfg = game.adminConfig || getAdminConfig();
             const sharedRoleStates = game.sharedTeamState?.roleStates || {};
@@ -4350,6 +4395,7 @@
                     teamBacklogPenaltyRate: Number((cfg.teamBacklogPenaltyRate ?? DEFAULT_TEAM_BACKLOG_PENALTY).toFixed(4)),
                     lagTime: cfg.lagTime,
                     shockScheduleText: cfg.shockScheduleText || serializeShockSchedule(cfg.shocks || []),
+                    endowment: Number((cfg.endowment ?? CRT_ENDOWMENT).toFixed(2)),
                     crtAnswer: role === p.role ? game.crtAnswer : '',
                     crtCorrect: role === p.role ? game.crtCorrect : '',
                     history: roleHistory.map(entry => ({ ...entry, role: entry.role || role }))
@@ -4366,7 +4412,6 @@
 
                 // Persist one record per role so the admin export can save every player's log.
                 results.forEach(record => postResultToServer(record));
-                game.ended = true;
             }
 
             // Display podium
@@ -4400,12 +4445,12 @@
 
             const paymentSummary = document.getElementById('paymentSummary');
             if (paymentSummary) {
-                paymentSummary.textContent = `Money remaining: $${getRemainingEndowment(p).toFixed(2)} (started from $${CRT_ENDOWMENT.toFixed(2)}).`;
+                paymentSummary.textContent = `Money remaining: $${getRemainingEndowment(p).toFixed(2)} (started from $${getConfiguredEndowment().toFixed(2)}).`;
             }
 
             renderDebugTimeline('resultsTimelinePanel');
 
-            showScreen('resultsScreen');
+            showScreen('endScreen');
         }
 
         function showHistory() {
@@ -4454,6 +4499,7 @@
             game.lastShockWarningDay = null;
             game.submittedThisRound = false;
             game.submittedRoles = [];
+            game.ended = false;
             stopPresenceHeartbeat();
             stopTeamRosterSync();
             stopSubmissionSync();
