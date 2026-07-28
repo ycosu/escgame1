@@ -3630,7 +3630,8 @@
             const decimalValue = numValue / 100;
             document.getElementById('crtAnswer').value = decimalValue.toString();
 
-            alert('Thanks for answering this question. As a reward, you get $25 money.');
+            const reward = getConfiguredEndowment();
+            alert(`Thanks for answering this question. As a reward, you get $${reward.toFixed(2)} money.`);
             
             closeCRTModal();
 
