@@ -282,8 +282,7 @@
             padding: 12px;
         }
 
-        body.game-active .team-chat h3,
-        body.game-active .chat-status {
+        body.game-active .team-chat h3 {
             margin-bottom: 8px;
         }
 
@@ -1151,12 +1150,6 @@
             margin-bottom: 12px;
         }
 
-        .chat-status {
-            margin-bottom: 12px;
-            color: #666;
-            font-size: 0.95em;
-        }
-
         .chat-messages {
             max-height: 220px;
             overflow-y: auto;
@@ -1993,7 +1986,6 @@
 
                                 <div id="teamChatPanel" class="team-chat hidden">
                                     <h3>💬 Team Chat</h3>
-                                    <div id="chatStatus" class="chat-status"></div>
                                     <div id="chatMessages" class="chat-messages"></div>
                                     <div class="chat-input-row">
                                         <input type="text" id="chatInput" placeholder="Message your team...">
@@ -3979,10 +3971,9 @@
 
         function renderTeamChat() {
             const panel = document.getElementById('teamChatPanel');
-            const status = document.getElementById('chatStatus');
             const messagesEl = document.getElementById('chatMessages');
             const input = document.getElementById('chatInput');
-            if (!panel || !status || !messagesEl || !input) return;
+            if (!panel || !messagesEl || !input) return;
 
             if (!game.treatment.chatEnabled) {
                 panel.classList.add('hidden');
@@ -3990,10 +3981,6 @@
             }
 
             panel.classList.remove('hidden');
-            const connectedText = game.socketConnected
-                ? `Realtime connected (${game.teamRoster.length} in team).`
-                : 'Realtime offline. Using local chat only.';
-            status.textContent = `Chat enabled for ${game.teamName}. ${connectedText}`;
 
             const messages = getTeamMessages();
             if (messages.length === 0) {
