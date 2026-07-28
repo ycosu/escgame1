@@ -2842,8 +2842,62 @@
             tick();
         }
 
+        async function syncGlobalAdminConfig() {
+            const localCfg = getAdminConfig();
+
+            try {
+                const base = (typeof getSocketUrl === 'function' ? (getSocketUrl() || '') : '');
+                const cleanBase = base.replace(/\/$/, '');
+                const endpoint = `${cleanBase}/api/admin/config?t=${Date.now()}`;
+                const response = await fetch(endpoint, { cache: 'no-store' });
+                if (!response.ok) return localCfg;
+
+                const payload = await response.json();
+                const serverCfg = payload?.config;
+                if (serverCfg && typeof serverCfg === 'object') {
+                    saveAdminConfigToStorage(serverCfg);
+                    game.adminConfig = getAdminConfig();
+                    return game.adminConfig;
+                }
+
+                // Server has no saved config yet: seed it with local admin config.
+                await fetch(`${cleanBase}/api/admin/config`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(localCfg)
+                });
+
+                if (game.socketConnected && game.socket) {
+                    game.socket.emit('set-global-admin-config', localCfg);
+                }
+
+                return localCfg;
+            } catch (err) {
+                console.warn('Failed to sync global admin config:', err);
+                return localCfg;
+            }
+        }
+
+        async function persistTeamStateToServer(statePayload) {
+            if (!game.teamNumber || !game.treatmentGroup || !statePayload) return;
+
+            try {
+                const base = (typeof getSocketUrl === 'function' ? (getSocketUrl() || '') : '');
+                const cleanBase = base.replace(/\/$/, '');
+                const endpoint = `${cleanBase}/api/team/${encodeURIComponent(game.teamNumber)}/${encodeURIComponent(game.treatmentGroup)}/state`;
+
+                await fetch(endpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(statePayload)
+                });
+            } catch (err) {
+                console.warn('Failed to persist team state fallback:', err);
+            }
+        }
+
         function publishTeamState() {
-            if (!game.socketConnected || !game.socket || !game.roomKey || !game.players.player) return;
+            if (!game.roomKey || !game.players.player) return;
 
             const p = game.players.player;
             const roleStates = { ...(game.sharedTeamState?.roleStates || {}) };
@@ -2875,11 +2929,16 @@
             };
 
             game.sharedTeamState = nextState;
-            game.socket.emit('set-room-node', {
-                roomKey: game.roomKey,
-                nodeName: 'teamState',
-                payload: nextState
-            });
+            if (game.socketConnected && game.socket) {
+                game.socket.emit('set-room-node', {
+                    roomKey: game.roomKey,
+                    nodeName: 'teamState',
+                    payload: nextState
+                });
+            }
+
+            // Keep REST polling clients in sync (including currentDay/totalDays).
+            void persistTeamStateToServer(nextState);
         }
 
         function connectRealtimeIfNeeded() {
@@ -3111,6 +3170,23 @@
 
             saveAdminConfigToStorage(cfg);
             game.adminConfig = getAdminConfig();
+
+            const persist = async () => {
+                try {
+                    const base = (typeof getSocketUrl === 'function' ? (getSocketUrl() || '') : '');
+                    const cleanBase = base.replace(/\/$/, '');
+                    await fetch(`${cleanBase}/api/admin/config`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(cfg)
+                    });
+                } catch (err) {
+                    console.warn('Failed to persist global admin config via REST:', err);
+                }
+            };
+
+            void persist();
+
             if (game.socketConnected && game.socket) {
                 game.socket.emit('set-global-admin-config', cfg);
             }
@@ -3731,6 +3807,8 @@
         async function startGame(e) {
             e.preventDefault();
 
+            await syncGlobalAdminConfig();
+
             const teamNumber = document.getElementById('teamNumber').value;
             const treatmentGroup = document.getElementById('treatmentGroup').value;
             const role = document.getElementById('playerRole').value;
@@ -4294,7 +4372,9 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         nextTurn: nextRole,
-                        submittedRole: submittedRole || game.players?.player?.role || null
+                        submittedRole: submittedRole || game.players?.player?.role || null,
+                        currentDay: Number(game.currentDay || 0),
+                        totalDays: Number(game.totalDays || 0)
                     })
                 });
 
@@ -4659,6 +4739,7 @@
         // Initialize
         document.addEventListener('DOMContentLoaded', () => {
             connectRealtimeIfNeeded();
+            void syncGlobalAdminConfig();
             adjustStartHeroToImage();
             const teamSelect = document.getElementById('teamNumber');
             if (teamSelect && teamSelect.options.length <= 1) {

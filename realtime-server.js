@@ -151,7 +151,7 @@ app.get('/api/team/:teamNum/:teamLetter/submissions', (req, res) => {
 // API endpoint to advance turn one step in the role sequence
 app.post('/api/team/:teamNum/:teamLetter/advance-turn', (req, res) => {
   const { teamNum, teamLetter } = req.params;
-  const { nextTurn, submittedRole } = req.body;
+  const { nextTurn, submittedRole, currentDay, totalDays } = req.body;
   
   const teamKey = `${teamNum}_${teamLetter}`;
   let state = teamStates.get(teamKey) || {};
@@ -161,6 +161,12 @@ app.post('/api/team/:teamNum/:teamLetter/advance-turn', (req, res) => {
   state.turnStep = (state.turnStep || 0) + 1;
   state.teamTurn = nextTurn || 'End Users';
   state.lastSubmittedRole = submittedRole || state.lastSubmittedRole || null;
+  if (Number.isFinite(Number(currentDay))) {
+    state.currentDay = Number(currentDay);
+  }
+  if (Number.isFinite(Number(totalDays)) && Number(totalDays) > 0) {
+    state.totalDays = Number(totalDays);
+  }
   state.roundAdvancedAt = new Date().toISOString();
   
   teamStates.set(teamKey, state);
@@ -173,7 +179,9 @@ app.post('/api/team/:teamNum/:teamLetter/advance-turn', (req, res) => {
     teamLetter,
     nextStep: state.turnStep,
     teamTurn: state.teamTurn,
-    submittedRole: state.lastSubmittedRole || null
+    submittedRole: state.lastSubmittedRole || null,
+    currentDay: Number(state.currentDay || 0),
+    totalDays: Number(state.totalDays || 0)
   };
   io.to(teamKey).emit('team-turn-advanced', turnPayload);
   io.to(`team_${teamNum}_${teamLetter}`).emit('team-turn-advanced', turnPayload);
