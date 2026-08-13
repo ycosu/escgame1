@@ -2113,11 +2113,9 @@
                                         <th>Timestamp</th>
                                         <th>Name</th>
                                         <th>Role</th>
-                                        <th>Days</th>
                                         <th>Total Cost</th>
+                                        <th>Money Earned</th>
                                         <th>CRT Answer</th>
-                                        <th>Lag</th>
-                                        <th>Shock</th>
                                     </tr>
                                 </thead>
                                 <tbody id="adminResultsBody"></tbody>
@@ -3423,23 +3421,23 @@
             const tbody = document.getElementById('adminResultsBody');
 
             if (results.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:#666;">No participant results yet.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#666;">No participant results yet.</td></tr>';
                 return;
             }
 
             tbody.innerHTML = results.slice().reverse().map(r => {
-                const shockTxt = r.shockScheduleText ? String(r.shockScheduleText).replace(/\n/g, '; ') : '-';
                 const crtCents = r.crtAnswer ? Math.round(parseFloat(r.crtAnswer) * 100) : '-';
+                const totalCost = Number(r.totalCost || 0);
+                const endowment = Math.max(0, Number(r.endowment ?? CRT_ENDOWMENT));
+                const moneyEarned = Math.max(0, endowment - totalCost);
                 return `
                     <tr>
                         <td>${new Date(r.timestamp).toLocaleString()}</td>
                         <td>${r.name}</td>
                         <td>${r.role}</td>
-                        <td>${r.totalDays}</td>
-                        <td>$${Number(r.totalCost || 0).toFixed(2)}</td>
+                        <td>$${totalCost.toFixed(2)}</td>
+                        <td>$${moneyEarned.toFixed(2)}</td>
                         <td>${crtCents}¢</td>
-                        <td>${r.lagTime}</td>
-                        <td>${shockTxt}</td>
                     </tr>
                 `;
             }).join('');
