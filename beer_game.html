@@ -2040,8 +2040,8 @@
 
             <div id="endScreen" class="screen">
                 <div class="results-container" style="text-align:center;">
-                    <h2>This is the end of the game.</h2>
-                    <p style="font-size:1.1rem;color:#555;">Wait for instructions please.</p>
+                    <h2>Thank you for your participation.</h2>
+                    <p style="font-size:1.1rem;color:#555;">Please wait for additional instructions.</p>
                 </div>
             </div>
 
@@ -2809,7 +2809,14 @@
 
             const turnHandler = (data) => {
                 if (!data || data.teamNum !== game.teamNumber || data.teamLetter !== game.treatmentGroup) return;
-                game.sharedTeamState = { ...(game.sharedTeamState || {}), teamTurn: data.teamTurn };
+                const nextState = { ...(game.sharedTeamState || {}), teamTurn: data.teamTurn };
+                if (Number.isFinite(Number(data.currentDay))) {
+                    nextState.currentDay = Number(data.currentDay);
+                }
+                if (Number.isFinite(Number(data.totalDays)) && Number(data.totalDays) > 0) {
+                    nextState.totalDays = Number(data.totalDays);
+                }
+                game.sharedTeamState = nextState;
                 syncCurrentPlayerFromSharedState();
                 game.submittedThisRound = false;
                 game.submittedRoles = [];
@@ -4731,8 +4738,8 @@
                     <td><strong>#${r.rank}</strong></td>
                     <td>${r.name}</td>
                     <td>${r.role}</td>
-                    <td>$${r.invCost.toFixed(2)}</td>
-                    <td>$${r.backCost.toFixed(2)}</td>
+                    <td>$${Number(r.inventoryCost || 0).toFixed(2)}</td>
+                    <td>$${Number(r.backorderCost || 0).toFixed(2)}</td>
                     <td><strong>$${r.totalCost.toFixed(2)}</strong></td>
                 </tr>
             `).join('');
