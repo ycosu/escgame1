@@ -2271,6 +2271,27 @@
             }
         }
 
+        function getAdminConfigTimestamp(config) {
+            const raw = config && (config.updatedAt || config.savedAt || config.lastSavedAt);
+            if (!raw) return 0;
+            const millis = Date.parse(raw);
+            return Number.isFinite(millis) ? millis : 0;
+        }
+
+        function chooseLatestAdminConfig(localCfg, remoteCfg) {
+            const localTs = getAdminConfigTimestamp(localCfg);
+            const remoteTs = getAdminConfigTimestamp(remoteCfg);
+
+            if (localTs > remoteTs) {
+                return { ...defaultAdminConfig, ...localCfg };
+            }
+            if (remoteTs > localTs) {
+                return { ...defaultAdminConfig, ...remoteCfg };
+            }
+
+            return { ...defaultAdminConfig, ...(localCfg || {}), ...(remoteCfg || {}) };
+        }
+
         function saveAdminConfigToStorage(config) {
             localStorage.setItem(ADMIN_CONFIG_KEY, JSON.stringify({
                 ...config,
@@ -3071,7 +3092,8 @@
                 const payload = await response.json();
                 const serverCfg = payload?.config;
                 if (serverCfg && typeof serverCfg === 'object') {
-                    saveAdminConfigToStorage(serverCfg);
+                    const latestCfg = chooseLatestAdminConfig(localCfg, serverCfg);
+                    saveAdminConfigToStorage(latestCfg);
                     game.adminConfig = getAdminConfig();
                     return game.adminConfig;
                 }
@@ -3080,7 +3102,7 @@
                 await fetch(`${cleanBase}/api/admin/config`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(localCfg)
+                    body: JSON.stringify({ ...localCfg, updatedAt: new Date().toISOString() })
                 });
 
                 if (game.socketConnected && game.socket) {
@@ -3202,7 +3224,10 @@
 
             game.socket.on('global-admin-config', (cfg) => {
                 if (!cfg || typeof cfg !== 'object') return;
-                saveAdminConfigToStorage(cfg);
+
+                const localCfg = getAdminConfig();
+                const latestCfg = chooseLatestAdminConfig(localCfg, cfg);
+                saveAdminConfigToStorage(latestCfg);
                 game.adminConfig = getAdminConfig();
 
                 const totalDaysInput = document.getElementById('adminTotalDays');
@@ -3376,7 +3401,8 @@
                 backlogPenaltyRate: Math.max(0, Number(document.getElementById('adminBacklogPenalty').value || DEFAULT_BACKLOG_PENALTY)),
                 teamBacklogPenaltyRate: Math.max(0, Number(document.getElementById('adminTeamBacklogPenalty').value || DEFAULT_TEAM_BACKLOG_PENALTY)),
                 shocks: parsedSchedule.shocks,
-                shockScheduleText: serializeShockSchedule(parsedSchedule.shocks)
+                shockScheduleText: serializeShockSchedule(parsedSchedule.shocks),
+                updatedAt: new Date().toISOString()
             };
 
             if (totalDays !== requestedDays) {
@@ -3395,7 +3421,7 @@
                     await fetch(`${cleanBase}/api/admin/config`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(cfg)
+                        body: JSON.stringify({ ...cfg, updatedAt: new Date().toISOString() })
                     });
                 } catch (err) {
                     console.warn('Failed to persist global admin config via REST:', err);
