@@ -2331,6 +2331,10 @@
             return shocks.filter(s => dayNumber === s.round);
         }
 
+        function getCurrentGameDay() {
+            return Math.max(1, Number(game.currentDay || 1));
+        }
+
         function getDisasterWarning(dayNumber) {
             const activeShocks = getActiveShocks(dayNumber);
             if (activeShocks.length === 0) return '';
@@ -4063,7 +4067,7 @@
             }
 
             game.totalDays = getAdminConfig().totalDays;
-            game.currentDay = 0;
+            game.currentDay = 1;
             game.gameStarted = true;
             game.ended = false;
             game.history = [];
@@ -4119,7 +4123,7 @@
             const gameMoney = getRemainingEndowment(p);
             maybeAnnounceDisaster();
 
-            document.getElementById('displayDay').textContent = game.currentDay + 1;
+            document.getElementById('displayDay').textContent = getCurrentGameDay();
             document.getElementById('displayTeam').textContent = game.teamName || '-';
             document.getElementById('displayRole').textContent = p.role || '-';
             document.getElementById('displayGameMoney').textContent = '$' + gameMoney.toFixed(2);
@@ -4342,15 +4346,16 @@
         function updateMessages() {
             const p = game.players.player;
             let msg = '';
+            const dayNumber = getCurrentGameDay();
 
             if (p.role === 'End Users') {
-                const demandToday = getExternalDemand(game.currentDay + 1);
+                const demandToday = getExternalDemand(dayNumber);
                 msg += `<div class="message-box info">Demand today: ${demandToday}</div>`;
             }
 
             // Realistic bullwhip: only End Users (the start of demand) feel the
             // disaster directly. Upstream tiers must infer the surge from incoming orders.
-            const disasterWarning = getDisasterWarning(game.currentDay + 1);
+            const disasterWarning = getDisasterWarning(dayNumber);
             if (disasterWarning && p.role === 'End Users') {
                 msg += '<div class="message-box warning">' + disasterWarning + '</div>';
             }
@@ -4360,7 +4365,7 @@
 
         function maybeAnnounceDisaster() {
             if (!game.gameStarted) return;
-            const dayNumber = game.currentDay + 1;
+            const dayNumber = getCurrentGameDay();
             if (game.lastShockWarningDay === dayNumber) return;
 
             const warning = getDisasterWarning(dayNumber);
@@ -4389,7 +4394,7 @@
                 // Every upstream tier faces the demand placed by its downstream customer,
                 // which arrives through the order lag queue (incomingOrders).
                 const incomingOrder = (role === 'End Users')
-                    ? getExternalDemand(game.currentDay + 1)
+                    ? getExternalDemand(getCurrentGameDay())
                     : Math.max(0, Number(state.incomingOrders.shift() || 0));
                 const totalDemand = incomingOrder + startingBacklog;
                 const shipped = Math.min(startingInventory, totalDemand);
@@ -4537,7 +4542,11 @@
             if (isFederalStockpileStep) {
                 // Resolve one full day only after all four tiers have submitted orders.
                 resolveDayAfterAllOrders(shared, lagTime);
-                game.currentDay += 1;
+                if (game.currentDay >= game.totalDays) {
+                    game.currentDay = game.totalDays;
+                } else {
+                    game.currentDay += 1;
+                }
             }
 
             shared.currentDay = game.currentDay;
