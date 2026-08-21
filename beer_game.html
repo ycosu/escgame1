@@ -1978,7 +1978,7 @@
                                     <div class="form-group">
                                         <label for="orderQuantity">How many units do you want to order? (0-100)</label>
                                         <div class="order-inline-row">
-                                            <input type="number" id="orderQuantity" min="0" max="100" value="0" placeholder="0" required>
+                                            <input type="number" id="orderQuantity" min="0" max="100" value="" placeholder="Enter quantity" required>
                                             <button id="submitOrderButton" class="btn btn-primary btn-small" onclick="submitOrderDay()">Submit Order »</button>
                                         </div>
                                     </div>
@@ -2059,7 +2059,6 @@
                             <button class="btn btn-secondary" onclick="goBack()">← Back</button>
                             <button class="btn btn-primary" onclick="unlockAdmin()">Unlock Admin</button>
                         </div>
-                        <div class="admin-note">Default password: admin123 (change in code before deployment).</div>
                     </div>
 
                     <div id="adminPanel" class="admin-panel">
@@ -2144,7 +2143,7 @@
         const DEFAULT_INVENTORY_PENALTY = 0.1;
         const DEFAULT_BACKLOG_PENALTY = 0.3;
         const DEFAULT_TEAM_BACKLOG_PENALTY = 0.5;
-        const ADMIN_PASSWORD = 'admin123';
+        const ADMIN_PASSWORD = 'eesun2539';
         const ADMIN_CONFIG_KEY = 'dsc_admin_config_v1';
         const RESULTS_KEY = 'dsc_participant_results_v1';
         const TEAM_CHAT_KEY = 'dsc_team_chat_v1';
@@ -4354,10 +4353,6 @@
             const disasterWarning = getDisasterWarning(game.currentDay + 1);
             if (disasterWarning && p.role === 'End Users') {
                 msg += '<div class="message-box warning">' + disasterWarning + '</div>';
-            }
-
-            if (p.inventory > 50) {
-                msg += '<div class="message-box info">💡 TIP: Your inventory is high. Consider reducing orders to minimize holding costs.</div>';
             }
 
             document.getElementById('gameMessage').innerHTML = msg;
