@@ -1213,13 +1213,13 @@
             background: #f8f9fa;
             border: 2px solid #e0e0e0;
             border-radius: 12px;
-            padding: 20px;
+            padding: 14px;
             margin-bottom: 25px;
         }
 
         .team-status-panel h3 {
             color: #333;
-            margin-bottom: 15px;
+            margin-bottom: 10px;
             font-size: 1.1em;
         }
 
@@ -1231,25 +1231,9 @@
             margin-bottom: 14px;
         }
 
-        .game-side-layout > .team-status-panel {
+        .game-side-layout > .team-status-panel,
+        .game-side-layout > .action-panel {
             margin-bottom: 0;
-        }
-
-        .game-right-column {
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-            height: 100%;
-        }
-
-        .game-right-column .action-panel {
-            margin-bottom: 0;
-        }
-
-        .game-right-column .team-chat {
-            margin-top: 0;
-            flex: 1;
-            min-height: 0;
         }
 
         .team-chat {
@@ -1264,19 +1248,15 @@
             overflow-y: auto;
         }
 
-        .game-right-column .chat-messages {
-            max-height: none;
-        }
-
         .team-member {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 12px;
+            padding: 8px 10px;
             background: white;
             border: 1px solid #e0e0e0;
             border-radius: 8px;
-            margin-bottom: 10px;
+            margin-bottom: 6px;
         }
 
         .team-member:last-child {
@@ -1995,28 +1975,26 @@
                         <div class="game-side-layout">
                             <div id="teamStatusPanel" class="team-status-panel"></div>
 
-                            <div class="game-right-column">
-                                <div class="action-panel">
-                                    <h3>⚙️ Daily Order Decision</h3>
-                                    
-                                    <div class="form-group">
-                                        <label for="orderQuantity">How many units do you want to order? (0-100)</label>
-                                        <div class="order-inline-row">
-                                            <input type="number" id="orderQuantity" min="0" max="100" value="" placeholder="Enter quantity" required>
-                                            <button id="submitOrderButton" class="btn btn-primary btn-small" onclick="submitOrderDay()">SUBMIT</button>
-                                            <button class="btn btn-secondary btn-small" onclick="showRecordSheet()">Record sheet</button>
-                                        </div>
+                            <div class="action-panel">
+                                <h3>⚙️ Daily Order Decision</h3>
+                                
+                                <div class="form-group">
+                                    <label for="orderQuantity">How many units do you want to order? (0-100)</label>
+                                    <div class="order-inline-row">
+                                        <input type="number" id="orderQuantity" min="0" max="100" value="" placeholder="Enter quantity" required>
+                                        <button id="submitOrderButton" class="btn btn-primary btn-small" onclick="submitOrderDay()">SUBMIT</button>
+                                        <button class="btn btn-secondary btn-small" onclick="showRecordSheet()">Record sheet</button>
                                     </div>
                                 </div>
+                            </div>
+                        </div>
 
-                                <div id="teamChatPanel" class="team-chat hidden">
-                                    <h3>💬 Team Chat</h3>
-                                    <div id="chatMessages" class="chat-messages"></div>
-                                    <div class="chat-input-row">
-                                        <input type="text" id="chatInput" placeholder="Message your team...">
-                                        <button class="btn btn-primary btn-small" onclick="sendTeamMessage()">Send</button>
-                                    </div>
-                                </div>
+                        <div id="teamChatPanel" class="team-chat hidden">
+                            <h3>💬 Team Chat</h3>
+                            <div id="chatMessages" class="chat-messages"></div>
+                            <div class="chat-input-row">
+                                <input type="text" id="chatInput" placeholder="Message your team...">
+                                <button class="btn btn-primary btn-small" onclick="sendTeamMessage()">Send</button>
                             </div>
                         </div>
 
