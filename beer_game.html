@@ -2066,15 +2066,6 @@
                 <div class="modal-box record-sheet-modal">
                     <h2>Record sheet</h2>
                     <p id="recordSheetPlayer" style="color:#666;"></p>
-                    <div class="form-group">
-                        <label for="recordSheetTreatment">Treatment type</label>
-                        <select id="recordSheetTreatment" onchange="updateRecordSheet()">
-                            <option value="A">Treatment A</option>
-                            <option value="B">Treatment B</option>
-                            <option value="C">Treatment C</option>
-                            <option value="D">Treatment D</option>
-                        </select>
-                    </div>
                     <table class="results-table">
                         <thead>
                             <tr>
@@ -4834,10 +4825,6 @@
         }
 
         function showRecordSheet() {
-            const treatmentSelect = document.getElementById('recordSheetTreatment');
-            if (treatmentSelect && game.treatmentGroup) {
-                treatmentSelect.value = game.treatmentGroup;
-            }
             updateRecordSheet();
             document.getElementById('recordSheetScreen').classList.add('active');
         }
@@ -4850,17 +4837,14 @@
             const p = game.players?.player;
             const body = document.getElementById('recordSheetBody');
             const playerLabel = document.getElementById('recordSheetPlayer');
-            const treatmentSelect = document.getElementById('recordSheetTreatment');
-            if (!body || !playerLabel || !treatmentSelect) return;
+            if (!body || !playerLabel) return;
 
-            const selectedTreatment = treatmentSelect.value;
-            const currentTreatment = game.treatmentGroup || '';
             playerLabel.textContent = p
-                ? `${game.teamName || 'Team'} - ${p.role} | Treatment ${currentTreatment}`
+                ? `${game.teamName || 'Team'} - ${p.role}`
                 : '';
 
-            if (!p || selectedTreatment !== currentTreatment) {
-                body.innerHTML = '<tr><td colspan="2" style="text-align:center;">No personal record for this treatment.</td></tr>';
+            if (!p) {
+                body.innerHTML = '<tr><td colspan="2" style="text-align:center;">No personal record available.</td></tr>';
                 return;
             }
 
