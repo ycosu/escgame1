@@ -827,6 +827,14 @@
             padding: 10px 12px;
         }
 
+        #submitOrderButton:disabled {
+            background: #9ca3af;
+            border-color: #9ca3af;
+            color: #ffffff;
+            cursor: not-allowed;
+            opacity: 1;
+        }
+
         .btn-small {
             padding: 10px 20px;
             font-size: 0.95em;
@@ -2760,13 +2768,7 @@
             }
             if (submitButton) {
                 submitButton.disabled = shouldLock;
-                if (alreadySubmitted) {
-                    submitButton.textContent = 'Wait';
-                } else if (notYourTurn) {
-                    submitButton.textContent = 'Wait';
-                } else {
-                    submitButton.textContent = 'SUBMIT';
-                }
+                submitButton.textContent = 'SUBMIT';
             }
         }
 
