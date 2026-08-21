@@ -1981,6 +1981,7 @@
                                             <button id="submitOrderButton" class="btn btn-primary btn-small" onclick="submitOrderDay()">Submit Order »</button>
                                         </div>
                                     </div>
+                                    <button class="btn btn-secondary btn-small" onclick="showRecordSheet()">Record sheet</button>
                                 </div>
 
                                 <div id="teamChatPanel" class="team-chat hidden">
@@ -2031,6 +2032,7 @@
                     <div id="resultsTimelinePanel" class="debug-timeline-panel"></div>
 
                     <div class="finish-buttons">
+                        <button class="btn btn-secondary" onclick="showRecordSheet()">Record sheet</button>
                         <button class="btn btn-secondary" onclick="viewFullHistory()">📜 Full History</button>
                         <button class="btn btn-primary" onclick="resetGame()">🔄 Play Again</button>
                     </div>
@@ -2041,6 +2043,34 @@
                 <div class="results-container" style="text-align:center;">
                     <h2>This is the end of the game.</h2>
                     <p style="font-size:1.1rem;color:#555;">Wait for instructions please.</p>
+                </div>
+            </div>
+
+            <div id="recordSheetScreen" class="screen">
+                <div class="results-container">
+                    <h2>Record sheet</h2>
+                    <p id="recordSheetPlayer" style="color:#666;"></p>
+                    <div class="form-group">
+                        <label for="recordSheetTreatment">Treatment type</label>
+                        <select id="recordSheetTreatment" onchange="updateRecordSheet()">
+                            <option value="A">Treatment A</option>
+                            <option value="B">Treatment B</option>
+                            <option value="C">Treatment C</option>
+                            <option value="D">Treatment D</option>
+                        </select>
+                    </div>
+                    <table class="results-table">
+                        <thead>
+                            <tr>
+                                <th>Day</th>
+                                <th>Your order</th>
+                            </tr>
+                        </thead>
+                        <tbody id="recordSheetBody"></tbody>
+                    </table>
+                    <div class="finish-buttons">
+                        <button class="btn btn-primary" onclick="showScreen('gameScreen')">Back to game</button>
+                    </div>
                 </div>
             </div>
 
@@ -4787,6 +4817,40 @@
             });
 
             alert(text);
+        }
+
+        function showRecordSheet() {
+            const treatmentSelect = document.getElementById('recordSheetTreatment');
+            if (treatmentSelect && game.treatmentGroup) {
+                treatmentSelect.value = game.treatmentGroup;
+            }
+            updateRecordSheet();
+            showScreen('recordSheetScreen');
+        }
+
+        function updateRecordSheet() {
+            const p = game.players?.player;
+            const body = document.getElementById('recordSheetBody');
+            const playerLabel = document.getElementById('recordSheetPlayer');
+            const treatmentSelect = document.getElementById('recordSheetTreatment');
+            if (!body || !playerLabel || !treatmentSelect) return;
+
+            const selectedTreatment = treatmentSelect.value;
+            const currentTreatment = game.treatmentGroup || '';
+            playerLabel.textContent = p
+                ? `${game.teamName || 'Team'} - ${p.role} | Treatment ${currentTreatment}`
+                : '';
+
+            if (!p || selectedTreatment !== currentTreatment) {
+                body.innerHTML = '<tr><td colspan="2" style="text-align:center;">No personal record for this treatment.</td></tr>';
+                return;
+            }
+
+            const state = game.sharedTeamState?.roleStates?.[p.role];
+            const history = Array.isArray(state?.history) ? state.history : [];
+            body.innerHTML = history.length
+                ? history.map(entry => `<tr><td>${entry.day}</td><td>${entry.order}</td></tr>`).join('')
+                : '<tr><td colspan="2" style="text-align:center;">No orders recorded yet.</td></tr>';
         }
 
         function viewFullHistory() {
