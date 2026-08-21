@@ -2716,21 +2716,21 @@
             if (orderInput) {
                 orderInput.disabled = shouldLock;
                 if (alreadySubmitted) {
-                    orderInput.placeholder = 'Waiting for teammates...';
+                    orderInput.placeholder = 'WAIT';
                 } else if (notYourTurn) {
-                    orderInput.placeholder = `Waiting for ${getActiveTeamTurnRole()}...`;
+                    orderInput.placeholder = 'WAIT';
                 } else {
-                    orderInput.placeholder = 'Your turn — enter your order';
+                    orderInput.placeholder = 'Your turn';
                 }
             }
             if (submitButton) {
                 submitButton.disabled = shouldLock;
                 if (alreadySubmitted) {
-                    submitButton.textContent = '✓ Order Submitted - Waiting...';
+                    submitButton.textContent = 'WAIT';
                 } else if (notYourTurn) {
-                    submitButton.textContent = `Waiting for ${getActiveTeamTurnRole()}...`;
+                    submitButton.textContent = 'WAIT';
                 } else {
-                    submitButton.textContent = '✅ Time to Submit Your Order »';
+                    submitButton.textContent = 'Your turn';
                 }
             }
         }
@@ -4323,7 +4323,7 @@
                 const hasSubmitted = game.submittedRoles && game.submittedRoles.includes(memberRole);
                 const submissionIndicator = hasSubmitted 
                     ? '<span style="margin-left:8px;color:#10b981;font-weight:600;">✓ Submitted</span>'
-                    : (memberRole === currentTurnRole ? '<span class="turn-indicator active">YOUR TURN</span>' : '<span class="turn-indicator waiting">Waiting</span>');
+                    : (memberRole === currentTurnRole ? '<span class="turn-indicator active">Your turn</span>' : '<span class="turn-indicator waiting">WAIT</span>');
 
                 return `
                     <div class="team-member">
