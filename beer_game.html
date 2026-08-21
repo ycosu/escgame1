@@ -270,11 +270,12 @@
         }
 
         body.game-active .order-inline-row {
-            gap: 10px;
+            grid-template-columns: minmax(0, 1fr) auto auto;
+            gap: 6px;
         }
 
         body.game-active #submitOrderButton {
-            min-width: 220px;
+            min-width: 0;
         }
 
         body.game-active .team-chat {
@@ -822,8 +823,8 @@
 
         #submitOrderButton {
             white-space: nowrap;
-            min-width: 240px;
-            padding: 10px 18px;
+            min-width: 0;
+            padding: 10px 12px;
         }
 
         .btn-small {
@@ -1427,6 +1428,22 @@
             text-align: center;
         }
 
+        .record-sheet-modal {
+            max-width: 560px;
+            max-height: 85vh;
+            overflow: auto;
+            text-align: left;
+        }
+
+        .record-sheet-modal h2 {
+            text-align: center;
+        }
+
+        .record-sheet-close {
+            display: block;
+            margin: 18px auto 0;
+        }
+
         .modal-box h2 {
             color: #333;
             margin-bottom: 20px;
@@ -1978,10 +1995,10 @@
                                         <label for="orderQuantity">How many units do you want to order? (0-100)</label>
                                         <div class="order-inline-row">
                                             <input type="number" id="orderQuantity" min="0" max="100" value="" placeholder="Enter quantity" required>
-                                            <button id="submitOrderButton" class="btn btn-primary btn-small" onclick="submitOrderDay()">Submit Order »</button>
+                                            <button id="submitOrderButton" class="btn btn-primary btn-small" onclick="submitOrderDay()">SUBMIT</button>
+                                            <button class="btn btn-secondary btn-small" onclick="showRecordSheet()">Record sheet</button>
                                         </div>
                                     </div>
-                                    <button class="btn btn-secondary btn-small" onclick="showRecordSheet()">Record sheet</button>
                                 </div>
 
                                 <div id="teamChatPanel" class="team-chat hidden">
@@ -2032,7 +2049,6 @@
                     <div id="resultsTimelinePanel" class="debug-timeline-panel"></div>
 
                     <div class="finish-buttons">
-                        <button class="btn btn-secondary" onclick="showRecordSheet()">Record sheet</button>
                         <button class="btn btn-secondary" onclick="viewFullHistory()">📜 Full History</button>
                         <button class="btn btn-primary" onclick="resetGame()">🔄 Play Again</button>
                     </div>
@@ -2046,8 +2062,8 @@
                 </div>
             </div>
 
-            <div id="recordSheetScreen" class="screen">
-                <div class="results-container">
+            <div id="recordSheetScreen" class="modal-overlay">
+                <div class="modal-box record-sheet-modal">
                     <h2>Record sheet</h2>
                     <p id="recordSheetPlayer" style="color:#666;"></p>
                     <div class="form-group">
@@ -2068,9 +2084,7 @@
                         </thead>
                         <tbody id="recordSheetBody"></tbody>
                     </table>
-                    <div class="finish-buttons">
-                        <button class="btn btn-primary" onclick="showScreen('gameScreen')">Back to game</button>
-                    </div>
+                    <button class="btn btn-primary record-sheet-close" onclick="closeRecordSheet()">Close</button>
                 </div>
             </div>
 
@@ -2746,9 +2760,9 @@
             if (orderInput) {
                 orderInput.disabled = shouldLock;
                 if (alreadySubmitted) {
-                    orderInput.placeholder = 'WAIT';
+                    orderInput.placeholder = 'Wait';
                 } else if (notYourTurn) {
-                    orderInput.placeholder = 'WAIT';
+                    orderInput.placeholder = 'Wait';
                 } else {
                     orderInput.placeholder = 'Your turn';
                 }
@@ -2756,11 +2770,11 @@
             if (submitButton) {
                 submitButton.disabled = shouldLock;
                 if (alreadySubmitted) {
-                    submitButton.textContent = 'WAIT';
+                    submitButton.textContent = 'Wait';
                 } else if (notYourTurn) {
-                    submitButton.textContent = 'WAIT';
+                    submitButton.textContent = 'Wait';
                 } else {
-                    submitButton.textContent = 'Your turn';
+                    submitButton.textContent = 'SUBMIT';
                 }
             }
         }
@@ -4334,7 +4348,7 @@
                 })
                 : orderedRoster;
 
-            let html = '<h3>👥 Team Status</h3>';
+            let html = '<h3>Team Status</h3>';
 
             if (membersToDisplay.length === 0) {
                 html += '<div style="color:#666;font-size:0.95em;">Waiting for teammates to join...</div>';
@@ -4353,7 +4367,7 @@
                 const hasSubmitted = game.submittedRoles && game.submittedRoles.includes(memberRole);
                 const submissionIndicator = hasSubmitted 
                     ? '<span style="margin-left:8px;color:#10b981;font-weight:600;">✓ Submitted</span>'
-                    : (memberRole === currentTurnRole ? '<span class="turn-indicator active">Your turn</span>' : '<span class="turn-indicator waiting">WAIT</span>');
+                    : (memberRole === currentTurnRole ? '<span class="turn-indicator active">Your turn</span>' : '<span class="turn-indicator waiting">Wait</span>');
 
                 return `
                     <div class="team-member">
@@ -4825,7 +4839,11 @@
                 treatmentSelect.value = game.treatmentGroup;
             }
             updateRecordSheet();
-            showScreen('recordSheetScreen');
+            document.getElementById('recordSheetScreen').classList.add('active');
+        }
+
+        function closeRecordSheet() {
+            document.getElementById('recordSheetScreen')?.classList.remove('active');
         }
 
         function updateRecordSheet() {
