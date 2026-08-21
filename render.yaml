@@ -6,6 +6,10 @@ services:
     buildCommand: npm install
     startCommand: npm start
     autoDeploy: true
+    disk:
+      name: emergency-supply-chain-data
+      mountPath: /opt/render/project/src/.persist
+      sizeGB: 1
     envVars:
       - key: NODE_VERSION
         value: 20

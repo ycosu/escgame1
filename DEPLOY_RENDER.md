@@ -28,7 +28,9 @@ By default, `render.yaml` sets:
 - `CORS_ORIGIN=*`
 
 Optional:
-- Set `REDIS_URL` if you want Redis-backed multi-instance realtime.
+- Set `REDIS_URL` if you want Redis-backed multi-instance realtime. The Render
+	service also uses a persistent disk mounted at `.persist` so saved global
+	admin controls survive redeploys.
 
 ## 4. Deploy And Test
 
