@@ -700,6 +700,29 @@
             font-weight: bold;
         }
 
+        .order-stats {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+            margin-top: 14px;
+        }
+
+        .order-stats .stat-box {
+            padding: 10px 8px;
+            border-radius: 10px;
+        }
+
+        .order-stats .stat-box h3 {
+            font-size: 0.68em;
+            margin-bottom: 4px;
+        }
+
+        .order-stats .stat-value {
+            font-size: 1.05em;
+            line-height: 1.2;
+            word-break: break-word;
+        }
+
         .supply-chain {
             display: grid;
             grid-template-columns: repeat(4, 1fr);
@@ -1948,25 +1971,6 @@
             <div id="gameScreen" class="screen">
                 <div class="game-container">
                     <div class="game-main">
-                        <div class="game-header">
-                            <div class="stat-box">
-                                <h3>Day</h3>
-                                <div class="stat-value" id="displayDay">1</div>
-                            </div>
-                            <div class="stat-box">
-                                <h3>Team</h3>
-                                <div class="stat-value" id="displayTeam" style="font-size: 1.1em;">-</div>
-                            </div>
-                            <div class="stat-box">
-                                <h3>Your Role</h3>
-                                <div class="stat-value" id="displayRole" style="font-size: 1.1em;">-</div>
-                            </div>
-                            <div class="stat-box">
-                                <h3>Money</h3>
-                                <div class="stat-value" id="displayGameMoney" style="font-size: 1.4em;">$25.00</div>
-                            </div>
-                        </div>
-
                         <div id="gameMessage"></div>
 
                         <!-- Diagnostic message area for network/errors -->
@@ -1984,6 +1988,25 @@
                                         <input type="number" id="orderQuantity" min="0" max="100" value="" placeholder="Enter quantity" required>
                                         <button id="submitOrderButton" class="btn btn-primary btn-small" onclick="submitOrderDay()">SUBMIT</button>
                                         <button class="btn btn-secondary btn-small" onclick="showRecordSheet()">Record sheet</button>
+                                    </div>
+                                </div>
+
+                                <div class="order-stats">
+                                    <div class="stat-box">
+                                        <h3>Day</h3>
+                                        <div class="stat-value" id="displayDay">1</div>
+                                    </div>
+                                    <div class="stat-box">
+                                        <h3>Team</h3>
+                                        <div class="stat-value" id="displayTeam">-</div>
+                                    </div>
+                                    <div class="stat-box">
+                                        <h3>Your Role</h3>
+                                        <div class="stat-value" id="displayRole">-</div>
+                                    </div>
+                                    <div class="stat-box">
+                                        <h3>Money</h3>
+                                        <div class="stat-value" id="displayGameMoney">$25.00</div>
                                     </div>
                                 </div>
                             </div>
