@@ -4158,7 +4158,7 @@
                 const myDayOrder = dayOrders[p.role];
                 const tierDayOrder = dayOrders[role];
                 const orderVal = isCurrent
-                    ? (myDayOrder != null ? myDayOrder : (p.dailyOrder > 0 ? p.dailyOrder : '-'))
+                    ? (myDayOrder != null ? myDayOrder : '-')
                     : (otherTierHidden && !isImmediateDownstream ? '-' : (tierDayOrder != null ? tierDayOrder : '-'));
                 const inventoryVal = isCurrent
                     ? Math.max(0, p.inventory)
