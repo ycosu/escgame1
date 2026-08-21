@@ -2745,29 +2745,21 @@
         }
 
         function isCurrentPlayerTurn() {
-            const playerRole = game.players?.player?.role;
-            return !!playerRole && playerRole === getActiveTeamTurnRole();
+            // Concurrent play: every seated player may order every round.
+            return !!game.players?.player?.role;
         }
 
         function updateTurnControls() {
             const orderInput = document.getElementById('orderQuantity');
             const submitButton = document.getElementById('submitOrderButton');
-            const notYourTurn = !isCurrentPlayerTurn();
             const alreadySubmitted = game.submittedThisRound;
-            const shouldLock = notYourTurn || alreadySubmitted;
 
             if (orderInput) {
-                orderInput.disabled = shouldLock;
-                if (alreadySubmitted) {
-                    orderInput.placeholder = 'Wait';
-                } else if (notYourTurn) {
-                    orderInput.placeholder = 'Wait';
-                } else {
-                    orderInput.placeholder = 'Your turn';
-                }
+                orderInput.disabled = alreadySubmitted;
+                orderInput.placeholder = alreadySubmitted ? 'Waiting for team' : 'Enter quantity';
             }
             if (submitButton) {
-                submitButton.disabled = shouldLock;
+                submitButton.disabled = alreadySubmitted;
                 submitButton.textContent = 'SUBMIT';
             }
         }
@@ -2855,7 +2847,10 @@
                     game.submittedRoles = [];
                 }
                 syncCurrentPlayerFromSharedState();
-                if (game.gameStarted) updateGameDisplay();
+                if (game.gameStarted) {
+                    maybeResolveConcurrentDay();
+                    updateGameDisplay();
+                }
             };
 
             const submissionHandler = (data) => {
@@ -3064,6 +3059,7 @@
                 syncCurrentPlayerFromSharedState();
 
                 if (game.gameStarted) {
+                    maybeResolveConcurrentDay();
                     updateTeamStatus();
                     updateTurnControls();
                     updateGameDisplay();
@@ -4356,11 +4352,12 @@
                 const statusClass = isOnline ? 'online' : 'offline';
                 const statusText = isOnline ? 'Online' : 'Offline';
                 
-                // Check if this role has submitted
-                const hasSubmitted = game.submittedRoles && game.submittedRoles.includes(memberRole);
+                // Concurrent play: "submitted" means this tier placed its order for the current day.
+                const dayOrders = game.sharedTeamState?.dayOrders || {};
+                const hasSubmitted = dayOrders[memberRole] !== undefined && dayOrders[memberRole] !== null;
                 const submissionIndicator = hasSubmitted 
                     ? '<span style="margin-left:8px;color:#10b981;font-weight:600;">✓ Submitted</span>'
-                    : (memberRole === currentTurnRole ? '<span class="turn-indicator active">Your turn</span>' : '<span class="turn-indicator waiting">Wait</span>');
+                    : '<span class="turn-indicator waiting">Waiting</span>';
 
                 return `
                     <div class="team-member">
@@ -4546,11 +4543,6 @@
             }
 
             const p = game.players.player;
-            if (!isCurrentPlayerTurn()) {
-                alert(`Wait for ${getActiveTeamTurnRole()} to make the next decision.`);
-                return;
-            }
-
             if (game.submittedThisRound) {
                 alert('You already submitted this round. Waiting for other teammates...');
                 return;
@@ -4560,7 +4552,6 @@
             const shared = ensureSharedTeamStateInitialized();
             const role = p.role;
             const roleState = shared.roleStates[role];
-            const lagTime = Math.max(1, Number(getActiveLeadTime()));
 
             roleState.pendingOrder = orderQty;
             // Show submitted order immediately for this tier; inventory/backlog still resolve at end-of-day.
@@ -4573,25 +4564,12 @@
             // key, so no peer broadcast can clobber another tier's submitted order.
             shared.dayOrders = { ...(shared.dayOrders || {}), [role]: orderQty };
 
-            const nextRole = getNextSequentialRole(role);
-            const isFederalStockpileStep = role === 'Federal Stockpile';
-            if (isFederalStockpileStep) {
-                // Resolve one full day only after all four tiers have submitted orders.
-                resolveDayAfterAllOrders(shared, lagTime);
-                if (game.currentDay >= game.totalDays) {
-                    game.currentDay = game.totalDays;
-                } else {
-                    game.currentDay += 1;
-                }
-            }
-
             shared.currentDay = game.currentDay;
             shared.totalDays = game.totalDays;
-            shared.teamTurn = nextRole;
             game.sharedTeamState = shared;
             syncCurrentPlayerFromSharedState();
 
-            // Mark this player as having submitted this turn step.
+            // Lock this player's controls until the round resolves.
             game.submittedThisRound = true;
 
             document.getElementById('orderQuantity').value = '';
@@ -4599,7 +4577,54 @@
             updateGameDisplay();
 
             await recordSubmission(role, orderQty);
-            await advanceTurn(nextRole, role);
+
+            // Concurrent play: the day resolves only after all four tiers submit.
+            // A single designated resolver advances the day to avoid double counting.
+            maybeResolveConcurrentDay();
+        }
+
+        function maybeResolveConcurrentDay() {
+            const shared = game.sharedTeamState;
+            if (!shared || game.ended) return;
+
+            const roles = getSequentialRoleOrder();
+            const dayOrders = shared.dayOrders || {};
+            const allSubmitted = roles.every((r) => dayOrders[r] !== undefined && dayOrders[r] !== null);
+            if (!allSubmitted) return;
+
+            // Only one client resolves the day. The last tier is the designated
+            // resolver; if all four orders exist, that client is connected.
+            const resolverRole = roles[roles.length - 1];
+            if (game.players?.player?.role !== resolverRole) return;
+
+            // Guard against resolving the same day twice.
+            if (Number(shared.lastResolvedDay) === Number(game.currentDay)) return;
+
+            const lagTime = Math.max(1, Number(getActiveLeadTime()));
+            // Use the submitted orders even if a pendingOrder sync lagged.
+            roles.forEach((r) => {
+                if (shared.roleStates[r]) shared.roleStates[r].pendingOrder = Number(dayOrders[r]);
+            });
+
+            resolveDayAfterAllOrders(shared, lagTime);
+            shared.lastResolvedDay = Number(game.currentDay);
+
+            if (game.currentDay >= game.totalDays) {
+                game.currentDay = game.totalDays;
+            } else {
+                game.currentDay += 1;
+            }
+
+            shared.currentDay = game.currentDay;
+            shared.totalDays = game.totalDays;
+            game.sharedTeamState = shared;
+            syncCurrentPlayerFromSharedState();
+
+            game.submittedThisRound = false;
+            game.submittedRoles = [];
+
+            publishTeamState();
+            updateGameDisplay();
 
             if (game.currentDay >= game.totalDays) {
                 endGame();
