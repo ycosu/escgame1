@@ -1225,7 +1225,7 @@
 
         .game-side-layout {
             display: grid;
-            grid-template-columns: 1.35fr 1fr;
+            grid-template-columns: 0.75fr 1.25fr;
             gap: 16px;
             align-items: stretch;
             margin-bottom: 14px;
@@ -4351,23 +4351,15 @@
                 const isOnline = member.online !== false;
                 const statusClass = isOnline ? 'online' : 'offline';
                 const statusText = isOnline ? 'Online' : 'Offline';
-                
-                // Concurrent play: "submitted" means this tier placed its order for the current day.
-                const dayOrders = game.sharedTeamState?.dayOrders || {};
-                const hasSubmitted = dayOrders[memberRole] !== undefined && dayOrders[memberRole] !== null;
-                const submissionIndicator = hasSubmitted 
-                    ? '<span style="margin-left:8px;color:#10b981;font-weight:600;">✓ Submitted</span>'
-                    : '<span class="turn-indicator waiting">Waiting</span>';
 
                 return `
                     <div class="team-member">
                         <div class="member-info">
                             <div class="member-name">${roleEmoji} ${memberRole}</div>
-                            <div class="member-role">${member.name || 'Unknown'}</div>
                         </div>
                         <div class="member-status">
                             <div class="status-dot ${statusClass}" title="${statusText}"></div>
-                            ${submissionIndicator}
+                            <span style="font-size:0.8em;color:#666;">${statusText}</span>
                         </div>
                     </div>
                 `;
