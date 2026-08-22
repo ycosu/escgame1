@@ -4188,12 +4188,14 @@
                 const thisRoleIdx = roles.indexOf(role);
                 const isImmediateDownstream = !highVisibility && !isCurrent && thisRoleIdx === myRoleIdx - 1;
 
-                const dayOrders = game.sharedTeamState?.dayOrders || {};
-                const myDayOrder = dayOrders[p.role];
-                const tierDayOrder = dayOrders[role];
+                // Orders are revealed together only after a round resolves, so the
+                // board shows each tier's last completed-round order, never the
+                // in-progress current-round submissions.
+                const myLastOrder = roleStates[p.role]?.lastDayOrder;
+                const tierLastOrder = remoteState?.lastDayOrder;
                 const orderVal = isCurrent
-                    ? (myDayOrder != null ? myDayOrder : '-')
-                    : (otherTierHidden && !isImmediateDownstream ? '-' : (tierDayOrder != null ? tierDayOrder : '-'));
+                    ? (myLastOrder != null ? myLastOrder : '-')
+                    : (otherTierHidden && !isImmediateDownstream ? '-' : (tierLastOrder != null ? tierLastOrder : '-'));
                 const inventoryVal = isCurrent
                     ? Math.max(0, p.inventory)
                     : (otherTierHidden ? '-' : (remoteState ? remoteState.inventory : '-'));
@@ -4547,9 +4549,8 @@
             const roleState = shared.roleStates[role];
 
             roleState.pendingOrder = orderQty;
-            // Show submitted order immediately for this tier; inventory/backlog still resolve at end-of-day.
+            // Hold this order privately; the board reveals all tiers' orders together only after the round resolves.
             roleState.order = orderQty;
-            roleState.lastDayOrder = orderQty;
             p.dailyOrder = orderQty;
 
             // Record this tier's order for the CURRENT day in a shared map so every
