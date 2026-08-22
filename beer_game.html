@@ -797,6 +797,18 @@
             color: #666;
         }
 
+        .dashboard-freshness {
+            color: #666;
+            font-size: 0.86em;
+            margin: 0 0 12px;
+        }
+
+        .operational-status {
+            font-size: 0.8em;
+            font-weight: 700;
+            color: #52606d;
+        }
+
         .action-panel {
             background: #f8f9fa;
             padding: 25px;
@@ -2016,7 +2028,7 @@
 
                                 <div class="order-stats">
                                     <div class="stat-box">
-                                        <h3>Day</h3>
+                                        <h3>Operational Period</h3>
                                         <div class="stat-value" id="displayDay">1</div>
                                     </div>
                                     <div class="stat-box">
@@ -2028,7 +2040,7 @@
                                         <div class="stat-value" id="displayRole">-</div>
                                     </div>
                                     <div class="stat-box">
-                                        <h3>Money</h3>
+                                        <h3>Operating Budget</h3>
                                         <div class="stat-value" id="displayGameMoney">$25.00</div>
                                     </div>
                                 </div>
@@ -2044,7 +2056,8 @@
                             </div>
                         </div>
 
-                        <h3 style="margin: 30px 0 20px; color: #333;">Supply Chain Status - Previous Round Information</h3>
+                        <h3 style="margin: 30px 0 8px; color: #333;">Network Common Operating Picture</h3>
+                        <p id="dashboardFreshness" class="dashboard-freshness"></p>
                         <div class="supply-chain" id="supplyChainDisplay"></div>
 
                         <div id="debugTimelinePanel" class="debug-timeline-panel hidden-for-players"></div>
@@ -4190,6 +4203,10 @@
             document.getElementById('displayTeam').textContent = game.teamName || '-';
             document.getElementById('displayRole').textContent = p.role || '-';
             document.getElementById('displayGameMoney').textContent = '$' + gameMoney.toFixed(2);
+            const completedPeriod = getCurrentGameDay() - 1;
+            document.getElementById('dashboardFreshness').textContent = completedPeriod > 0
+                ? `Information current through Operational Period ${completedPeriod}. Decisions for Operational Period ${getCurrentGameDay()}.`
+                : `No completed operational period yet. Decisions for Operational Period ${getCurrentGameDay()}.`;
 
             updateSupplyChain();
             updateStats();
@@ -4235,6 +4252,11 @@
                 const totalCostVal = isCurrent
                     ? '$' + totalCost.toFixed(2)
                     : (otherTierHidden ? '-' : (remoteState ? ('$' + Number(remoteState.totalCost || 0).toFixed(2)) : '-'));
+                const visibleInventory = Number(inventoryVal);
+                const visibleBacklog = Number(backordersVal);
+                const statusVal = !Number.isFinite(visibleInventory) || !Number.isFinite(visibleBacklog) ? '-' :
+                    (visibleBacklog > 0 && visibleInventory === 0 ? 'Critical shortage' :
+                        (visibleBacklog > 0 ? 'Backlog risk' : (visibleInventory <= 2 ? 'Low inventory' : 'Normal')));
                 const formatPipeline = (values, label) => {
                     const rows = (Array.isArray(values) ? values : []).map((value, index) => ({ value: Number(value || 0), index }))
                         .filter(item => item.value > 0);
@@ -4275,6 +4297,10 @@
                         <div class="player-stat">
                             <span class="player-stat-label">Total Cost:</span>
                             <span class="player-stat-value">${totalCostVal}</span>
+                        </div>
+                        <div class="player-stat">
+                            <span class="player-stat-label">Status:</span>
+                            <span class="player-stat-value operational-status">${statusVal}</span>
                         </div>
                         ${personalPipeline}
                     </div>
