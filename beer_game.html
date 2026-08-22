@@ -4240,7 +4240,7 @@
                 const canSeePipeline = isCurrent || highVisibility;
                 const personalPipeline = canSeePipeline ? `
                     <div class="pipeline-box">
-                        ${formatPipeline(pipelineState.incomingShipments, 'Products arriving')}
+                        ${formatPipeline(pipelineState.incomingShipments, 'Products shipped')}
                         ${getUpstreamRole(role) ? formatPipeline(upstreamState.incomingOrders, 'Orders moving upstream') : ''}
                     </div>` : '';
                 
