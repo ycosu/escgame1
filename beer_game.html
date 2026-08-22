@@ -4235,23 +4235,6 @@
                 const totalCostVal = isCurrent
                     ? '$' + totalCost.toFixed(2)
                     : (otherTierHidden ? '-' : (remoteState ? ('$' + Number(remoteState.totalCost || 0).toFixed(2)) : '-'));
-                const formatPipeline = (values, label) => {
-                    const rows = (Array.isArray(values) ? values : []).map((value, index) => ({ value: Number(value || 0), index }))
-                        .filter(item => item.value > 0);
-                    return `<div class="pipeline-title">${label}</div>` + (rows.length
-                        ? rows.map(item => `<div class="pipeline-row"><span class="pipeline-muted">${item.index === 0 ? 'Expected next day' : `Expected in ${item.index + 1} days`}</span><strong>${item.value}</strong></div>`).join('')
-                        : '<div class="pipeline-muted">None in transit</div>');
-                };
-                const pipelineState = remoteState || {};
-                const canSeePipeline = isCurrent || highVisibility;
-                const lastShipped = Number((pipelineState.history || []).at(-1)?.shipped || 0);
-                const shippedByThisTier = `<div class="pipeline-title">Shipped by you</div><div class="pipeline-row"><strong>${lastShipped}</strong></div>`;
-                const personalPipeline = canSeePipeline ? `
-                    <div class="pipeline-box">
-                        ${formatPipeline(pipelineState.incomingShipments, 'Arriving to you')}
-                        ${shippedByThisTier}
-                    </div>` : '';
-                
                 return `
                     <div class="player-card ${isCurrent ? 'current' : ''}">
                         <h3>${emojis[i]} ${role}</h3>
@@ -4271,7 +4254,6 @@
                             <span class="player-stat-label">Total Cost:</span>
                             <span class="player-stat-value">${totalCostVal}</span>
                         </div>
-                        ${personalPipeline}
                     </div>
                 `;
             }).join('');
