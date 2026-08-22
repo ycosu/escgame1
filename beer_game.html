@@ -4228,8 +4228,6 @@
                 const totalCostVal = isCurrent
                     ? '$' + totalCost.toFixed(2)
                     : (otherTierHidden ? '-' : (remoteState ? ('$' + Number(remoteState.totalCost || 0).toFixed(2)) : '-'));
-                const personalState = roleStates[p.role] || {};
-                const upstreamState = roleStates[getUpstreamRole(p.role)] || {};
                 const formatPipeline = (values, label) => {
                     const rows = (Array.isArray(values) ? values : []).map((value, index) => ({ value: Number(value || 0), index }))
                         .filter(item => item.value > 0);
@@ -4237,10 +4235,13 @@
                         ? rows.map(item => `<div class="pipeline-row"><span class="pipeline-muted">${item.index === 0 ? 'Next round' : `In ${item.index + 1} rounds`}</span><strong>${item.value}</strong></div>`).join('')
                         : '<div class="pipeline-muted">None</div>');
                 };
-                const personalPipeline = isCurrent ? `
+                const pipelineState = remoteState || {};
+                const upstreamState = roleStates[getUpstreamRole(role)] || {};
+                const canSeePipeline = isCurrent || highVisibility;
+                const personalPipeline = canSeePipeline ? `
                     <div class="pipeline-box">
-                        ${formatPipeline(personalState.incomingShipments, 'Products arriving')}
-                        ${getUpstreamRole(p.role) ? formatPipeline(upstreamState.incomingOrders, 'Your orders moving upstream') : ''}
+                        ${formatPipeline(pipelineState.incomingShipments, 'Products arriving')}
+                        ${getUpstreamRole(role) ? formatPipeline(upstreamState.incomingOrders, 'Orders moving upstream') : ''}
                     </div>` : '';
                 
                 return `
