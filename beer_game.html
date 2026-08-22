@@ -4247,10 +4247,7 @@
                 const canSeePipeline = isCurrent || highVisibility;
                 const shippedByThisTier = getDownstreamRole(role)
                     ? formatPipeline(downstreamState.incomingShipments, 'Shipped by you (in transit)')
-                    : formatPipeline(
-                        [Number((pipelineState.history || []).at(-1)?.shipped || 0)],
-                        'Shipped by you (in transit)'
-                    );
+                    : `<div class="pipeline-title">Customer demand fulfilled (previous round)</div><div class="pipeline-row"><strong>${Number((pipelineState.history || []).at(-1)?.shipped || 0)}</strong></div>`;
                 const personalPipeline = canSeePipeline ? `
                     <div class="pipeline-box">
                         ${formatPipeline(pipelineState.incomingShipments, 'Arriving to you (in transit)')}
