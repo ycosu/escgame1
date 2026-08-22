@@ -2358,10 +2358,10 @@
         }
 
         function saveAdminConfigToStorage(config) {
-            localStorage.setItem(ADMIN_CONFIG_KEY, JSON.stringify({
-                ...config,
-                updatedAt: new Date().toISOString()
-            }));
+            const savedAt = getAdminConfigTimestamp(config) > 0
+                ? config.updatedAt || config.savedAt || config.lastSavedAt
+                : new Date().toISOString();
+            localStorage.setItem(ADMIN_CONFIG_KEY, JSON.stringify({ ...config, updatedAt: savedAt }));
         }
 
         function getStoredResults() {
@@ -3154,6 +3154,13 @@
                     const latestCfg = chooseLatestAdminConfig(localCfg, serverCfg);
                     saveAdminConfigToStorage(latestCfg);
                     game.adminConfig = getAdminConfig();
+                    if (getAdminConfigTimestamp(localCfg) > getAdminConfigTimestamp(serverCfg)) {
+                        await fetch(`${cleanBase}/api/admin/config`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(localCfg)
+                        });
+                    }
                     return game.adminConfig;
                 }
 
