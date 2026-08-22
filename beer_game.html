@@ -2672,6 +2672,7 @@
                 shortageDays: 0,
                 incomingOrders: Array(lagTime).fill(0),
                 incomingShipments: Array(lagTime).fill(0),
+                factoryOrders: Array(lagTime).fill(0),
                 history: []
             };
         }
@@ -2705,6 +2706,7 @@
                 const state = game.sharedTeamState.roleStates[role];
                 state.incomingOrders = normalizeQueue(state.incomingOrders, lagTime, 0);
                 state.incomingShipments = normalizeQueue(state.incomingShipments, lagTime, 0);
+                state.factoryOrders = normalizeQueue(state.factoryOrders, lagTime, 0);
                 state.inventory = Math.max(0, Number(state.inventory || 0));
                 state.backorders = Math.max(0, Number(state.backorders || 0));
                 state.order = Math.max(0, Number(state.order || 0));
@@ -4441,8 +4443,12 @@
                 const state = roleStates[role] || createInitialRoleState(role, game.adminConfig?.initialInventory ?? 0, lagTime);
                 state.incomingOrders = normalizeQueue(state.incomingOrders, lagTime, 0);
                 state.incomingShipments = normalizeQueue(state.incomingShipments, lagTime, 0);
+                state.factoryOrders = normalizeQueue(state.factoryOrders, lagTime, 0);
 
                 const arrivedToday = Number(state.incomingShipments.shift() || 0);
+                const factoryOrderReceived = role === 'Federal Stockpile'
+                    ? Number(state.factoryOrders.shift() || 0)
+                    : 0;
                 const startingInventory = Math.max(0, Number(state.inventory || 0)) + arrivedToday;
                 const startingBacklog = Math.max(0, Number(state.backorders || 0));
                 const orderPlaced = Math.max(0, Number(state.pendingOrder ?? state.order ?? 0));
@@ -4499,8 +4505,12 @@
                     const upstreamState = roleStates[upstreamRole];
                     upstreamState.incomingOrders.push(update.orderPlaced);
                 } else {
-                    // External factory shipment to Federal Stockpile still respects lag queue.
-                    state.incomingShipments.push(update.orderPlaced);
+                    // The factory receives the Stockpile's order before producing a shipment.
+                    state.factoryOrders.push(update.orderPlaced);
+                }
+
+                if (role === 'Federal Stockpile' && factoryOrderReceived > 0) {
+                    state.incomingShipments.push(factoryOrderReceived);
                 }
 
                 const inventoryPenalty = state.inventory * rates.inventoryPenalty;
