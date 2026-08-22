@@ -2022,7 +2022,7 @@
 
                                 <div class="order-stats">
                                     <div class="stat-box">
-                                        <h3>Operational Period</h3>
+                                        <h3>Day</h3>
                                         <div class="stat-value" id="displayDay">1</div>
                                     </div>
                                     <div class="stat-box">
@@ -2050,7 +2050,7 @@
                             </div>
                         </div>
 
-                        <h3 style="margin: 30px 0 8px; color: #333;">Network Common Operating Picture</h3>
+                        <h3 style="margin: 30px 0 8px; color: #333;">Supply Chain Status - Previous Round Information</h3>
                         <p id="dashboardFreshness" class="dashboard-freshness"></p>
                         <div class="supply-chain" id="supplyChainDisplay"></div>
 
@@ -4199,8 +4199,8 @@
             document.getElementById('displayGameMoney').textContent = '$' + gameMoney.toFixed(2);
             const completedPeriod = getCurrentGameDay() - 1;
             document.getElementById('dashboardFreshness').textContent = completedPeriod > 0
-                ? `Information current through Operational Period ${completedPeriod}. Decisions for Operational Period ${getCurrentGameDay()}.`
-                : `No completed operational period yet. Decisions for Operational Period ${getCurrentGameDay()}.`;
+                ? `Information current through Day ${completedPeriod}. Decisions for Day ${getCurrentGameDay()}.`
+                : `No completed day yet. Decisions for Day ${getCurrentGameDay()}.`;
 
             updateSupplyChain();
             updateStats();
