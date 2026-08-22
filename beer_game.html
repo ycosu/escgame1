@@ -2386,7 +2386,7 @@
         }
 
         function getActiveLeadTime() {
-            const baseLag = Math.max(1, game.adminConfig.lagTime || 2);
+            const baseLag = Math.max(1, Number(game.adminConfig?.lagTime ?? defaultAdminConfig.lagTime));
             const dayNumber = game.currentDay + 1;
             const shockLag = getActiveShocks(dayNumber).reduce((sum, s) => sum + Math.max(0, Number(s?.lagDelta || 0)), 0);
             return Math.max(1, baseLag + shockLag);
@@ -2678,7 +2678,7 @@
 
         function ensureSharedTeamStateInitialized() {
             const cfg = game.adminConfig || getAdminConfig();
-            const lagTime = Math.max(1, Number(cfg.lagTime || 2));
+            const lagTime = Math.max(1, Number(cfg.lagTime ?? defaultAdminConfig.lagTime));
             const initialInventory = Math.max(0, Number(cfg.initialInventory ?? 0));
             const roles = getSequentialRoleOrder();
 
