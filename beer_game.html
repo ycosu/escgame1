@@ -4238,10 +4238,16 @@
                 const pipelineState = remoteState || {};
                 const downstreamState = roleStates[getDownstreamRole(role)] || {};
                 const canSeePipeline = isCurrent || highVisibility;
+                const shippedByThisTier = getDownstreamRole(role)
+                    ? formatPipeline(downstreamState.incomingShipments, 'Products shipped by you')
+                    : formatPipeline(
+                        [Number((pipelineState.history || []).at(-1)?.shipped || 0)],
+                        'Products shipped by you'
+                    );
                 const personalPipeline = canSeePipeline ? `
                     <div class="pipeline-box">
                         ${formatPipeline(pipelineState.incomingShipments, 'Products arriving to you')}
-                        ${getDownstreamRole(role) ? formatPipeline(downstreamState.incomingShipments, 'Products shipped by you') : ''}
+                        ${shippedByThisTier}
                     </div>` : '';
                 
                 return `
