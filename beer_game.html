@@ -774,6 +774,29 @@
             font-size: 1.05em;
         }
 
+        .pipeline-box {
+            margin-top: 12px;
+            padding-top: 10px;
+            border-top: 1px solid rgba(0, 0, 0, 0.12);
+            font-size: 0.85em;
+        }
+
+        .pipeline-title {
+            font-weight: 700;
+            margin-bottom: 6px;
+        }
+
+        .pipeline-row {
+            display: flex;
+            justify-content: space-between;
+            gap: 8px;
+            padding: 2px 0;
+        }
+
+        .pipeline-muted {
+            color: #666;
+        }
+
         .action-panel {
             background: #f8f9fa;
             padding: 25px;
@@ -4205,6 +4228,20 @@
                 const totalCostVal = isCurrent
                     ? '$' + totalCost.toFixed(2)
                     : (otherTierHidden ? '-' : (remoteState ? ('$' + Number(remoteState.totalCost || 0).toFixed(2)) : '-'));
+                const personalState = roleStates[p.role] || {};
+                const upstreamState = roleStates[getUpstreamRole(p.role)] || {};
+                const formatPipeline = (values, label) => {
+                    const rows = (Array.isArray(values) ? values : []).map((value, index) => ({ value: Number(value || 0), index }))
+                        .filter(item => item.value > 0);
+                    return `<div class="pipeline-title">${label}</div>` + (rows.length
+                        ? rows.map(item => `<div class="pipeline-row"><span class="pipeline-muted">${item.index === 0 ? 'Next round' : `In ${item.index + 1} rounds`}</span><strong>${item.value}</strong></div>`).join('')
+                        : '<div class="pipeline-muted">None</div>');
+                };
+                const personalPipeline = isCurrent ? `
+                    <div class="pipeline-box">
+                        ${formatPipeline(personalState.incomingShipments, 'Products arriving')}
+                        ${getUpstreamRole(p.role) ? formatPipeline(upstreamState.incomingOrders, 'Your orders moving upstream') : ''}
+                    </div>` : '';
                 
                 return `
                     <div class="player-card ${isCurrent ? 'current' : ''}">
@@ -4225,6 +4262,7 @@
                             <span class="player-stat-label">Total Cost:</span>
                             <span class="player-stat-value">${totalCostVal}</span>
                         </div>
+                        ${personalPipeline}
                     </div>
                 `;
             }).join('');
