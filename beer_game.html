@@ -4236,12 +4236,12 @@
                         : '<div class="pipeline-muted">None</div>');
                 };
                 const pipelineState = remoteState || {};
-                const upstreamState = roleStates[getUpstreamRole(role)] || {};
+                const downstreamState = roleStates[getDownstreamRole(role)] || {};
                 const canSeePipeline = isCurrent || highVisibility;
                 const personalPipeline = canSeePipeline ? `
                     <div class="pipeline-box">
-                        ${formatPipeline(pipelineState.incomingShipments, 'Products shipped')}
-                        ${getUpstreamRole(role) ? formatPipeline(upstreamState.incomingOrders, 'Orders moving upstream') : ''}
+                        ${formatPipeline(pipelineState.incomingShipments, 'Products arriving to you')}
+                        ${getDownstreamRole(role) ? formatPipeline(downstreamState.incomingShipments, 'Products shipped by you') : ''}
                     </div>` : '';
                 
                 return `
