@@ -4239,7 +4239,7 @@
                     const rows = (Array.isArray(values) ? values : []).map((value, index) => ({ value: Number(value || 0), index }))
                         .filter(item => item.value > 0);
                     return `<div class="pipeline-title">${label}</div>` + (rows.length
-                        ? rows.map(item => `<div class="pipeline-row"><span class="pipeline-muted">${item.index === 0 ? 'Expected next round' : `Expected in ${item.index + 1} rounds`}</span><strong>${item.value}</strong></div>`).join('')
+                        ? rows.map(item => `<div class="pipeline-row"><span class="pipeline-muted">${item.index === 0 ? 'Expected next day' : `Expected in ${item.index + 1} days`}</span><strong>${item.value}</strong></div>`).join('')
                         : '<div class="pipeline-muted">None in transit</div>');
                 };
                 const pipelineState = remoteState || {};
