@@ -797,12 +797,6 @@
             color: #666;
         }
 
-        .dashboard-freshness {
-            color: #666;
-            font-size: 0.86em;
-            margin: 0 0 12px;
-        }
-
         .action-panel {
             background: #f8f9fa;
             padding: 25px;
@@ -2051,7 +2045,6 @@
                         </div>
 
                         <h3 style="margin: 30px 0 8px; color: #333;">Supply Chain Status - Previous Day Information</h3>
-                        <p id="dashboardFreshness" class="dashboard-freshness"></p>
                         <div class="supply-chain" id="supplyChainDisplay"></div>
 
                         <div id="debugTimelinePanel" class="debug-timeline-panel hidden-for-players"></div>
@@ -4197,11 +4190,6 @@
             document.getElementById('displayTeam').textContent = game.teamName || '-';
             document.getElementById('displayRole').textContent = p.role || '-';
             document.getElementById('displayGameMoney').textContent = '$' + gameMoney.toFixed(2);
-            const completedPeriod = getCurrentGameDay() - 1;
-            document.getElementById('dashboardFreshness').textContent = completedPeriod > 0
-                ? `Information current through Day ${completedPeriod}. Decisions for Day ${getCurrentGameDay()}.`
-                : `Decisions for Day ${getCurrentGameDay()}.`;
-
             updateSupplyChain();
             updateStats();
             updateTeamStatus();
