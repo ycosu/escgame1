@@ -2160,8 +2160,9 @@
                                     <input type="number" id="adminTeamBacklogPenalty" min="0" step="0.01" value="0.5">
                                 </div>
                                 <div class="form-group">
-                                    <label for="adminShockSchedule">Shock Schedule (round:lagDelta)</label>
+                                    <label for="adminShockSchedule">Shock Schedule (round:+lag days)</label>
                                     <textarea id="adminShockSchedule" rows="6" placeholder="3:1&#10;4:2&#10;5:1&#10;8:2&#10;10:1"></textarea>
+                                    <small>Each value adds days to the base lag. Example: 3:2 means add 2 days on Round 3.</small>
                                 </div>
                             </div>
                             <div class="button-row" style="margin-top: 8px;">
