@@ -803,12 +803,6 @@
             margin: 0 0 12px;
         }
 
-        .operational-status {
-            font-size: 0.8em;
-            font-weight: 700;
-            color: #52606d;
-        }
-
         .action-panel {
             background: #f8f9fa;
             padding: 25px;
@@ -4252,11 +4246,6 @@
                 const totalCostVal = isCurrent
                     ? '$' + totalCost.toFixed(2)
                     : (otherTierHidden ? '-' : (remoteState ? ('$' + Number(remoteState.totalCost || 0).toFixed(2)) : '-'));
-                const visibleInventory = Number(inventoryVal);
-                const visibleBacklog = Number(backordersVal);
-                const statusVal = !Number.isFinite(visibleInventory) || !Number.isFinite(visibleBacklog) ? '-' :
-                    (visibleBacklog > 0 && visibleInventory === 0 ? 'Critical shortage' :
-                        (visibleBacklog > 0 ? 'Backlog risk' : (visibleInventory <= 2 ? 'Low inventory' : 'Normal')));
                 const formatPipeline = (values, label) => {
                     const rows = (Array.isArray(values) ? values : []).map((value, index) => ({ value: Number(value || 0), index }))
                         .filter(item => item.value > 0);
@@ -4297,10 +4286,6 @@
                         <div class="player-stat">
                             <span class="player-stat-label">Total Cost:</span>
                             <span class="player-stat-value">${totalCostVal}</span>
-                        </div>
-                        <div class="player-stat">
-                            <span class="player-stat-label">Status:</span>
-                            <span class="player-stat-value operational-status">${statusVal}</span>
                         </div>
                         ${personalPipeline}
                     </div>
