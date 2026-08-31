@@ -4777,14 +4777,13 @@
                 const statusClass = isOnline ? 'online' : 'offline';
                 const statusText = isOnline ? 'Online' : 'Offline';
                 const hasSubmitted = dayOrders[memberRole] !== undefined && dayOrders[memberRole] !== null;
-                const submitText = hasSubmitted ? '✅ Submitted' : '⏳ Waiting for order';
+                const submitText = hasSubmitted ? '✅ Submitted' : '⏳ Waiting';
                 const submitColor = hasSubmitted ? '#2e7d32' : '#b8860b';
 
                 return `
                     <div class="team-member">
                         <div class="member-info">
-                            <div class="member-name">${roleEmoji} ${memberRole}</div>
-                            <div style="font-size:0.8em;color:${submitColor};">${submitText}</div>
+                            <div class="member-name">${roleEmoji} ${memberRole} <span style="font-size:0.8em;color:${submitColor};font-weight:600;">${submitText}</span></div>
                         </div>
                         <div class="member-status">
                             <div class="status-dot ${statusClass}" title="${statusText}"></div>
@@ -5007,7 +5006,10 @@
             await recordSubmission(role, orderQty);
 
             // Concurrent play: the day resolves only after all four tiers submit.
-            // A single designated resolver advances the day to avoid double counting.
+            // Pull the authoritative merged state from the server first, in case a
+            // teammate's socket broadcast never reached this browser — otherwise
+            // this client might think a role hasn't submitted when it actually has.
+            await syncTeamStateFromServer();
             maybeResolveConcurrentDay();
         }
 
