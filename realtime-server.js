@@ -190,19 +190,43 @@ app.post('/api/team/:teamNum/:teamLetter/advance-turn', (req, res) => {
 // API endpoint to save team state
 app.post('/api/team/:teamNum/:teamLetter/state', (req, res) => {
   const { teamNum, teamLetter } = req.params;
-  const state = req.body;
+  const incoming = req.body;
   
-  if (!state) {
+  if (!incoming) {
     return res.status(400).json({ error: 'Missing state data' });
   }
   
   const teamKey = `${teamNum}_${teamLetter}`;
-  teamStates.set(teamKey, state);
-  console.log(`✅ Saved state for Team ${teamKey}: Round ${state.round || 0}, RoleIndex ${state.roleIndex || 0}, Orders:`, state.roundOrders);
-  res.json({ success: true, state });
+  const existing = teamStates.get(teamKey) || {};
+
+  // Merge instead of blind-replace so concurrent per-player publishes accumulate
+  // each tier's submitted order rather than clobbering each other. Without this,
+  // the last writer wins and the "all 4 submitted" check never passes, so the
+  // day never advances.
+  const prevDay = Number(existing.currentDay ?? 0);
+  const newDay = Number(incoming.currentDay ?? prevDay);
+  const dayAdvanced = newDay > prevDay;
+
+  const merged = {
+    ...existing,
+    ...incoming,
+    roleStates: { ...(existing.roleStates || {}), ...(incoming.roleStates || {}) },
+    dayOrders: dayAdvanced
+      ? (incoming.dayOrders || {})
+      : { ...(existing.dayOrders || {}), ...(incoming.dayOrders || {}) },
+    // Never let a lagging client's stale publish roll the day backwards.
+    currentDay: Math.max(prevDay, newDay),
+    // Preserve submission markers written by the /submit endpoint.
+    roleSubmissions: existing.roleSubmissions || incoming.roleSubmissions || {}
+  };
+
+  teamStates.set(teamKey, merged);
+  const dayOrderCount = merged.dayOrders ? Object.keys(merged.dayOrders).length : 0;
+  console.log(`✅ Saved state for Team ${teamKey}: Day ${merged.currentDay || 0}, dayOrders submitted: ${dayOrderCount}/4`);
+  res.json({ success: true, state: merged });
   
   // Broadcast to all Socket.IO clients listening to this team
-  io.to(`team_${teamNum}_${teamLetter}`).emit('team-state-updated', { teamNum, teamLetter, state });
+  io.to(`team_${teamNum}_${teamLetter}`).emit('team-state-updated', { teamNum, teamLetter, state: merged });
 });
 
 // API endpoint to get global admin config

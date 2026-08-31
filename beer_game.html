@@ -5045,6 +5045,9 @@
 
             shared.currentDay = game.currentDay;
             shared.totalDays = game.totalDays;
+            // Clear the just-resolved orders so the new day starts fresh; otherwise
+            // the stale "all 4 submitted" set would immediately re-trigger a resolve.
+            shared.dayOrders = {};
             game.sharedTeamState = shared;
             syncCurrentPlayerFromSharedState();
 
