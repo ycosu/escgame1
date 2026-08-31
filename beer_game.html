@@ -4768,17 +4768,23 @@
                 return;
             }
 
+            const dayOrders = game.sharedTeamState?.dayOrders || {};
+
             html += membersToDisplay.map(member => {
                 const memberRole = member.role || '-';
                 const roleEmoji = roles.includes(memberRole) ? emojis[roles.indexOf(memberRole)] : '?';
                 const isOnline = member.online !== false;
                 const statusClass = isOnline ? 'online' : 'offline';
                 const statusText = isOnline ? 'Online' : 'Offline';
+                const hasSubmitted = dayOrders[memberRole] !== undefined && dayOrders[memberRole] !== null;
+                const submitText = hasSubmitted ? '✅ Submitted' : '⏳ Waiting for order';
+                const submitColor = hasSubmitted ? '#2e7d32' : '#b8860b';
 
                 return `
                     <div class="team-member">
                         <div class="member-info">
                             <div class="member-name">${roleEmoji} ${memberRole}</div>
+                            <div style="font-size:0.8em;color:${submitColor};">${submitText}</div>
                         </div>
                         <div class="member-status">
                             <div class="status-dot ${statusClass}" title="${statusText}"></div>
