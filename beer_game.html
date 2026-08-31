@@ -2844,6 +2844,7 @@
                     teamName: game.teamName,
                     currentDay: game.currentDay,
                     totalDays: game.totalDays,
+                    isTrial: !!game.isTrial,
                     teamTurn: roles[0],
                     roleStates: {}
                 };
@@ -2884,6 +2885,7 @@
 
             game.sharedTeamState.currentDay = Number(game.currentDay || 0);
             game.sharedTeamState.totalDays = Number(game.totalDays || 52);
+            game.sharedTeamState.isTrial = !!(game.sharedTeamState.isTrial ?? game.isTrial);
             game.sharedTeamState.teamTurn = game.sharedTeamState.teamTurn || roles[0];
 
             return game.sharedTeamState;
@@ -2895,6 +2897,8 @@
                 const sharedTotalDays = Number(game.sharedTeamState.totalDays);
                 if (Number.isFinite(sharedDay)) game.currentDay = sharedDay;
                 if (Number.isFinite(sharedTotalDays) && sharedTotalDays > 0) game.totalDays = sharedTotalDays;
+                // Keep the trial banner/logic consistent across every teammate.
+                if (typeof game.sharedTeamState.isTrial === 'boolean') game.isTrial = game.sharedTeamState.isTrial;
             }
             const player = game.players?.player;
             const role = player?.role;
@@ -3391,6 +3395,7 @@
                 teamName: game.teamName,
                 currentDay: game.currentDay,
                 totalDays: game.totalDays,
+                isTrial: !!game.isTrial,
                 teamTurn: game.sharedTeamState?.teamTurn || getSequentialRoleOrder()[0],
                 updatedByRole: p.role,
                 updatedAt: new Date().toISOString(),
@@ -3553,12 +3558,11 @@
             const banner = document.getElementById('setupModeBanner');
             if (banner) {
                 if (pendingIsTrial) {
-                    const trialCfg = getTrialConfig();
                     banner.style.display = 'block';
                     banner.style.background = '#fff3cd';
                     banner.style.color = '#856404';
                     banner.style.border = '1px solid #ffeeba';
-                    banner.textContent = `🧪 TRIAL MODE — ${trialCfg.totalDays} practice rounds.`;
+                    banner.textContent = `🧪 TRIAL MODE`;
                 } else {
                     banner.style.display = 'none';
                     banner.textContent = '';
@@ -4545,7 +4549,7 @@
                     banner.style.background = '#fff3cd';
                     banner.style.color = '#856404';
                     banner.style.border = '1px solid #ffeeba';
-                    banner.textContent = `🧪 TRIAL — Round ${getCurrentGameDay()} of ${game.totalDays} (practice, no disruptions). The real game begins right after.`;
+                    banner.textContent = `🧪 TRIAL MODE`;
                 } else {
                     banner.style.display = 'none';
                     banner.textContent = '';
