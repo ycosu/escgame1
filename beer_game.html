@@ -2152,6 +2152,7 @@
                         <div id="gameAdminPanel">
                         <div class="admin-card">
                             <h3>ADMIN – GAME (Global Game Controls)</h3>
+                            <p id="persistenceStatus" style="margin-top:-8px;font-weight:600;">💾 Checking persistence…</p>
                             <div class="admin-grid">
                                 <div class="form-group">
                                     <label for="adminTotalDays">Game Days</label>
@@ -3637,6 +3638,32 @@
             showAdminTab('game');
             refreshAdminResults();
             refreshTrialAdminResults();
+            refreshPersistenceStatus();
+        }
+
+        // Confirms with the server whether saved admin settings will actually
+        // survive a Render redeploy (persistent Disk and/or Redis), instead of
+        // silently assuming it works.
+        async function refreshPersistenceStatus() {
+            const el = document.getElementById('persistenceStatus');
+            if (!el) return;
+            try {
+                const base = (typeof getSocketUrl === 'function' ? (getSocketUrl() || '') : '');
+                const cleanBase = base.replace(/\/$/, '');
+                const response = await fetch(`${cleanBase}/api/admin/persistence-status?t=${Date.now()}`, { cache: 'no-store' });
+                if (!response.ok) throw new Error(`status ${response.status}`);
+                const status = await response.json();
+                if (status.diskWritable || status.redisConnected) {
+                    el.style.color = '#2e7d32';
+                    el.textContent = `💾 Persistence OK — settings will survive redeploys (${status.redisConnected ? 'Redis' : 'Disk'} connected).`;
+                } else {
+                    el.style.color = '#c0392b';
+                    el.textContent = '⚠️ No persistent Disk or Redis detected — settings may reset on redeploy. Attach a Render Disk at ' + (status.diskPath || '.persist') + ' or set REDIS_URL.';
+                }
+            } catch (err) {
+                el.style.color = '#c0392b';
+                el.textContent = '⚠️ Could not check persistence status (server unreachable).';
+            }
         }
 
         function showAdminTab(tab) {
@@ -4992,12 +5019,10 @@
             const allSubmitted = roles.every((r) => dayOrders[r] !== undefined && dayOrders[r] !== null);
             if (!allSubmitted) return;
 
-            // Only one client resolves the day. The last tier is the designated
-            // resolver; if all four orders exist, that client is connected.
-            const resolverRole = roles[roles.length - 1];
-            if (game.players?.player?.role !== resolverRole) return;
-
-            // Guard against resolving the same day twice.
+            // Guard against resolving the same day twice. Any connected teammate's
+            // client may resolve once everyone has submitted (not just one fixed
+            // role), so the round advances even if a specific tier's browser is
+            // closed — this idempotency check is what keeps it safe.
             if (Number(shared.lastResolvedDay) === Number(game.currentDay)) return;
 
             const lagTime = Math.max(1, Number(getActiveLeadTime()));
