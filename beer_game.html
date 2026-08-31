@@ -1543,7 +1543,8 @@
             <div id="startScreen" class="screen active">
                 <div class="start-content">
                     <div class="button-group">
-                        <button class="btn btn-primary" onclick="showSetup()">🎮 Play Game</button>
+                        <button class="btn btn-primary" onclick="showSetup(false)">🎮 Play Game</button>
+                        <button class="btn btn-secondary" onclick="showSetup(true)">🧪 Play Trial</button>
                         <button class="btn btn-secondary" onclick="showAdmin()">🔐 Admin</button>
                     </div>
 
@@ -1927,7 +1928,8 @@
             <div id="setupScreen" class="screen">
                 <div class="setup-form">
                     <h2>Game Setup</h2>
-                    
+                    <div id="setupModeBanner" style="display:none;padding:10px 14px;border-radius:8px;margin-bottom:16px;font-weight:600;"></div>
+
                     <form id="setupForm" onsubmit="startGame(event)">
                         <div class="form-group">
                             <label for="teamNumber">Team Number (1-100) *</label>
@@ -1998,6 +2000,8 @@
 
                         <!-- Diagnostic message area for network/errors -->
                         <div id="diagnosticMessage" style="margin:8px 0;padding:8px;border-radius:4px;display:none;background:#fff3cd;color:#856404;border:1px solid #ffeeba;"></div>
+
+                        <div id="gameModeBanner" style="display:none;margin:8px 0;padding:10px 14px;border-radius:8px;font-weight:600;"></div>
 
                         <div class="game-side-layout">
                             <div id="teamStatusPanel" class="team-status-panel"></div>
@@ -2094,6 +2098,18 @@
                 </div>
             </div>
 
+            <!-- Trial Complete Screen -->
+            <div id="trialCompleteScreen" class="screen">
+                <div class="results-container" style="text-align:center;">
+                    <h2>🧪 Trial Complete!</h2>
+                    <p style="font-size:1.1rem;color:#555;">You've finished the practice trial.</p>
+                    <p style="font-size:1.1rem;color:#555;">Returning to the home screen so you can start the real game…</p>
+                    <div class="button-row" style="justify-content:center;margin-top:20px;">
+                        <button class="btn btn-primary" onclick="resetGame()">Return to Home →</button>
+                    </div>
+                </div>
+            </div>
+
             <div id="recordSheetScreen" class="modal-overlay">
                 <div class="modal-box record-sheet-modal">
                     <h2>Record sheet</h2>
@@ -2128,8 +2144,14 @@
                     </div>
 
                     <div id="adminPanel" class="admin-panel">
+                        <div class="button-row" style="margin-bottom: 12px;">
+                            <button id="adminTabGameBtn" class="btn btn-primary btn-small" onclick="showAdminTab('game')">🎮 ADMIN – GAME</button>
+                            <button id="adminTabTrialBtn" class="btn btn-secondary btn-small" onclick="showAdminTab('trial')">🧪 ADMIN – TRIAL</button>
+                        </div>
+
+                        <div id="gameAdminPanel">
                         <div class="admin-card">
-                            <h3>Global Game Controls</h3>
+                            <h3>ADMIN – GAME (Global Game Controls)</h3>
                             <div class="admin-grid">
                                 <div class="form-group">
                                     <label for="adminTotalDays">Game Days</label>
@@ -2172,7 +2194,7 @@
                         </div>
 
                         <div class="admin-card admin-results">
-                            <h3>Participant Results</h3>
+                            <h3>Participant Results (Real Game)</h3>
                             <table class="results-table">
                                 <thead>
                                     <tr>
@@ -2197,6 +2219,70 @@
                                 <button class="btn btn-secondary btn-small" onclick="downloadChatLogsCSV()">💬 Chat Logs</button>
                             </div>
                         </div>
+                        </div>
+
+                        <div id="trialAdminPanel" style="display:none;">
+                        <div class="admin-card">
+                            <h3>ADMIN – TRIAL (Trial Controls)</h3>
+                            <p style="color:#666;margin-top:-8px;">The trial never has disruptions — it always runs with no shocks.</p>
+                            <div class="admin-grid">
+                                <div class="form-group">
+                                    <label for="trialTotalDays">Trial Rounds</label>
+                                    <input type="number" id="trialTotalDays" min="1" max="50" value="5">
+                                </div>
+                                <div class="form-group">
+                                    <label for="trialLagTime">Lag / Lead Time (days)</label>
+                                    <input type="number" id="trialLagTime" min="1" max="10" value="1">
+                                </div>
+                                <div class="form-group">
+                                    <label for="trialInitialInventory">Initial Inventory (all roles)</label>
+                                    <input type="number" id="trialInitialInventory" min="0" max="1000" value="12">
+                                </div>
+                                <div class="form-group">
+                                    <label for="trialEndowment">Participant Endowment ($)</label>
+                                    <input type="number" id="trialEndowment" min="0" max="1000" step="0.01" value="25">
+                                </div>
+                                <div class="form-group">
+                                    <label for="trialInventoryPenalty">Inventory Penalty per Unit/Day ($)</label>
+                                    <input type="number" id="trialInventoryPenalty" min="0" step="0.01" value="0.1">
+                                </div>
+                                <div class="form-group">
+                                    <label for="trialBacklogPenalty">Backlog Penalty per Unit/Day ($)</label>
+                                    <input type="number" id="trialBacklogPenalty" min="0" step="0.01" value="0.3">
+                                </div>
+                                <div class="form-group">
+                                    <label for="trialTeamBacklogPenalty">Team Penalty if End Tier Backlog ($/day)</label>
+                                    <input type="number" id="trialTeamBacklogPenalty" min="0" step="0.01" value="0.5">
+                                </div>
+                            </div>
+                            <div class="button-row" style="margin-top: 8px;">
+                                <button class="btn btn-secondary btn-small" onclick="goBack()">← Back</button>
+                                <button class="btn btn-primary btn-small" onclick="saveTrialAdminConfig()">Save Trial Controls</button>
+                            </div>
+                        </div>
+
+                        <div class="admin-card admin-results">
+                            <h3>Participant Results (Trial — local only)</h3>
+                            <table class="results-table">
+                                <thead>
+                                    <tr>
+                                        <th>Timestamp</th>
+                                        <th>Name</th>
+                                        <th>Role</th>
+                                        <th>Rounds</th>
+                                        <th>Total Cost</th>
+                                        <th>Lag</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="trialAdminResultsBody"></tbody>
+                            </table>
+                            <div class="button-row" style="margin-top: 16px;">
+                                <button class="btn btn-secondary btn-small" onclick="refreshTrialAdminResults()">Refresh Trial Results</button>
+                                <button class="btn btn-secondary btn-small" onclick="clearTrialResults()">Clear Trial Results</button>
+                                <button class="btn btn-primary btn-small" onclick="downloadTrialResultsCSV()">Download Trial CSV</button>
+                            </div>
+                        </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -2212,8 +2298,12 @@
         const DEFAULT_TEAM_BACKLOG_PENALTY = 0.5;
         const ADMIN_PASSWORD = 'eesun2539';
         const ADMIN_CONFIG_KEY = 'dsc_admin_config_v1';
+        const TRIAL_ADMIN_CONFIG_KEY = 'dsc_trial_admin_config_v1';
         const RESULTS_KEY = 'dsc_participant_results_v1';
+        const TRIAL_RESULTS_KEY = 'dsc_trial_participant_results_v1';
         const TEAM_CHAT_KEY = 'dsc_team_chat_v1';
+        // Tracks whether the player picked "Play Trial" or "Play Game" on the landing screen.
+        let pendingIsTrial = false;
         function getDefaultSocketUrl() {
             const params = new URLSearchParams(window.location.search);
             const queryServer = (params.get('server') || '').trim();
@@ -2365,6 +2455,55 @@
             localStorage.setItem(ADMIN_CONFIG_KEY, JSON.stringify({ ...config, updatedAt: savedAt }));
         }
 
+        // Trial config always has 5 rounds and no shocks (disruptions never occur
+        // during the trial). Only lag/inventory/penalty/endowment are configurable.
+        const defaultTrialConfig = {
+            totalDays: 5,
+            lagTime: 1,
+            initialInventory: 12,
+            endowment: CRT_ENDOWMENT,
+            inventoryPenaltyRate: DEFAULT_INVENTORY_PENALTY,
+            backlogPenaltyRate: DEFAULT_BACKLOG_PENALTY,
+            teamBacklogPenaltyRate: DEFAULT_TEAM_BACKLOG_PENALTY,
+            shocks: [],
+            shockScheduleText: '',
+            updatedAt: null
+        };
+
+        function getTrialConfig() {
+            const saved = localStorage.getItem(TRIAL_ADMIN_CONFIG_KEY);
+            const base = { ...defaultTrialConfig };
+            if (!saved) return base;
+            try {
+                const parsed = JSON.parse(saved);
+                return {
+                    ...base,
+                    ...parsed,
+                    totalDays: Math.max(1, parseInt(parsed.totalDays || base.totalDays, 10)),
+                    lagTime: Math.max(1, parseInt(parsed.lagTime || base.lagTime, 10)),
+                    initialInventory: Math.max(0, parseInt(parsed.initialInventory ?? base.initialInventory, 10) || base.initialInventory),
+                    endowment: Math.max(0, Number(parsed.endowment ?? base.endowment)),
+                    inventoryPenaltyRate: Math.max(0, Number(parsed.inventoryPenaltyRate ?? base.inventoryPenaltyRate)),
+                    backlogPenaltyRate: Math.max(0, Number(parsed.backlogPenaltyRate ?? base.backlogPenaltyRate)),
+                    teamBacklogPenaltyRate: Math.max(0, Number(parsed.teamBacklogPenaltyRate ?? base.teamBacklogPenaltyRate)),
+                    // Trial never has disruptions, regardless of what was saved.
+                    shocks: [],
+                    shockScheduleText: ''
+                };
+            } catch (err) {
+                return base;
+            }
+        }
+
+        function saveTrialConfigToStorage(config) {
+            localStorage.setItem(TRIAL_ADMIN_CONFIG_KEY, JSON.stringify({
+                ...config,
+                shocks: [],
+                shockScheduleText: '',
+                updatedAt: new Date().toISOString()
+            }));
+        }
+
         function getStoredResults() {
             const raw = localStorage.getItem(RESULTS_KEY);
             if (!raw) return [];
@@ -2378,6 +2517,23 @@
 
         function saveStoredResults(results) {
             localStorage.setItem(RESULTS_KEY, JSON.stringify(results));
+        }
+
+        // Trial results are kept in a separate local-only store; they are never
+        // posted to the server so they can't mix with real game data.
+        function getStoredTrialResults() {
+            const raw = localStorage.getItem(TRIAL_RESULTS_KEY);
+            if (!raw) return [];
+            try {
+                const parsed = JSON.parse(raw);
+                return Array.isArray(parsed) ? parsed : [];
+            } catch (err) {
+                return [];
+            }
+        }
+
+        function saveStoredTrialResults(results) {
+            localStorage.setItem(TRIAL_RESULTS_KEY, JSON.stringify(results));
         }
 
         function sanitizeCSVValue(value) {
@@ -2581,6 +2737,7 @@
             baseDemand: 4,
             gameStarted: false,
             ended: false,
+            isTrial: false,
             adminConfig: getAdminConfig(),
             participantId: null,
             teamName: null,
@@ -3386,7 +3543,22 @@
             document.body.classList.toggle('game-active', screenId === 'gameScreen');
         }
 
-        function showSetup() {
+        function showSetup(isTrial) {
+            pendingIsTrial = !!isTrial;
+            const banner = document.getElementById('setupModeBanner');
+            if (banner) {
+                if (pendingIsTrial) {
+                    const trialCfg = getTrialConfig();
+                    banner.style.display = 'block';
+                    banner.style.background = '#fff3cd';
+                    banner.style.color = '#856404';
+                    banner.style.border = '1px solid #ffeeba';
+                    banner.textContent = `🧪 TRIAL MODE — ${trialCfg.totalDays} practice rounds.`;
+                } else {
+                    banner.style.display = 'none';
+                    banner.textContent = '';
+                }
+            }
             showScreen('setupScreen');
         }
 
@@ -3442,9 +3614,33 @@
             document.getElementById('adminTeamBacklogPenalty').value = cfg.teamBacklogPenaltyRate;
             document.getElementById('adminShockSchedule').value = cfg.shockScheduleText || serializeShockSchedule(cfg.shocks || []);
 
+            const trialCfg = getTrialConfig();
+            document.getElementById('trialTotalDays').value = trialCfg.totalDays;
+            document.getElementById('trialLagTime').value = trialCfg.lagTime;
+            document.getElementById('trialInitialInventory').value = trialCfg.initialInventory;
+            document.getElementById('trialEndowment').value = trialCfg.endowment;
+            document.getElementById('trialInventoryPenalty').value = trialCfg.inventoryPenaltyRate;
+            document.getElementById('trialBacklogPenalty').value = trialCfg.backlogPenaltyRate;
+            document.getElementById('trialTeamBacklogPenalty').value = trialCfg.teamBacklogPenaltyRate;
+
             document.getElementById('adminAuth').style.display = 'none';
             document.getElementById('adminPanel').classList.add('active');
+            showAdminTab('game');
             refreshAdminResults();
+            refreshTrialAdminResults();
+        }
+
+        function showAdminTab(tab) {
+            const gamePanel = document.getElementById('gameAdminPanel');
+            const trialPanel = document.getElementById('trialAdminPanel');
+            const gameBtn = document.getElementById('adminTabGameBtn');
+            const trialBtn = document.getElementById('adminTabTrialBtn');
+            const showTrial = tab === 'trial';
+
+            if (gamePanel) gamePanel.style.display = showTrial ? 'none' : 'block';
+            if (trialPanel) trialPanel.style.display = showTrial ? 'block' : 'none';
+            if (gameBtn) gameBtn.className = showTrial ? 'btn btn-secondary btn-small' : 'btn btn-primary btn-small';
+            if (trialBtn) trialBtn.className = showTrial ? 'btn btn-primary btn-small' : 'btn btn-secondary btn-small';
         }
 
         function saveAdminConfig() {
@@ -3603,12 +3799,138 @@
             }
         }
 
+        function saveTrialAdminConfig() {
+            const lagTime = Math.max(1, parseInt(document.getElementById('trialLagTime').value || '1', 10));
+            const totalDays = Math.max(1, parseInt(document.getElementById('trialTotalDays').value || '5', 10));
+
+            const cfg = {
+                totalDays,
+                lagTime,
+                initialInventory: Math.max(0, parseInt(document.getElementById('trialInitialInventory').value || '0', 10)),
+                endowment: Math.max(0, Number(document.getElementById('trialEndowment').value || CRT_ENDOWMENT)),
+                inventoryPenaltyRate: Math.max(0, Number(document.getElementById('trialInventoryPenalty').value || DEFAULT_INVENTORY_PENALTY)),
+                backlogPenaltyRate: Math.max(0, Number(document.getElementById('trialBacklogPenalty').value || DEFAULT_BACKLOG_PENALTY)),
+                teamBacklogPenaltyRate: Math.max(0, Number(document.getElementById('trialTeamBacklogPenalty').value || DEFAULT_TEAM_BACKLOG_PENALTY)),
+                shocks: [],
+                shockScheduleText: ''
+            };
+
+            saveTrialConfigToStorage(cfg);
+            alert('Trial controls saved. New trials will use these settings. The trial never has disruptions.');
+        }
+
+        function refreshTrialAdminResults() {
+            const results = getStoredTrialResults();
+            const tbody = document.getElementById('trialAdminResultsBody');
+            if (!tbody) return;
+
+            if (results.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#666;">No trial results yet.</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = results.slice().reverse().map(r => `
+                <tr>
+                    <td>${new Date(r.timestamp).toLocaleString()}</td>
+                    <td>${r.name}</td>
+                    <td>${r.role}</td>
+                    <td>${r.totalDays}</td>
+                    <td>$${Number(r.totalCost || 0).toFixed(2)}</td>
+                    <td>${r.lagTime}</td>
+                </tr>
+            `).join('');
+        }
+
+        function clearTrialResults() {
+            if (!confirm('Delete all locally stored trial results?')) return;
+            saveStoredTrialResults([]);
+            refreshTrialAdminResults();
+        }
+
         function seededRandom(seed) {
             let value = seed >>> 0;
             return function next() {
                 value = (value * 1664525 + 1013904223) >>> 0;
                 return value / 4294967296;
             };
+        }
+
+        function downloadTrialResultsCSV() {
+            // Trial data lives only in this browser's local storage (never posted to the server).
+            const results = getStoredTrialResults();
+            if (results.length === 0) {
+                alert('No trial results available to download.');
+                return;
+            }
+
+            const headers = [
+                'timestamp', 'participantId', 'name', 'role', 'teamNumber', 'treatmentGroup',
+                'round', 'dayIndex', 'demand', 'order', 'inventory', 'backlog',
+                'inventoryCostDay', 'backlogCostDay', 'totalCostDay',
+                'effectiveLagTime', 'baseLagTime', 'endowment',
+                'inventoryPenaltyRate', 'backlogPenaltyRate', 'teamBacklogPenaltyRate', 'totalDays'
+            ];
+
+            const lines = [headers.map(sanitizeCSVValue).join(',')];
+
+            results.forEach(stored => {
+                const history = Array.isArray(stored.history) ? stored.history : [];
+                const roleEntries = history
+                    .filter(h => String(h.role) === String(stored.role))
+                    .sort((a, b) => Number(a.day) - Number(b.day));
+
+                roleEntries.forEach(entry => {
+                    const day = Number(entry.day);
+                    const round = Number.isFinite(day) ? day + 1 : '';
+                    const inventory = Number(entry.inventory || 0);
+                    const backlog = Number(entry.backorders || 0);
+                    const inventoryPenaltyRate = Math.max(0, Number(stored.inventoryPenaltyRate ?? DEFAULT_INVENTORY_PENALTY));
+                    const backlogPenaltyRate = Math.max(0, Number(stored.backlogPenaltyRate ?? DEFAULT_BACKLOG_PENALTY));
+                    const teamBacklogPenaltyRate = Math.max(0, Number(stored.teamBacklogPenaltyRate ?? DEFAULT_TEAM_BACKLOG_PENALTY));
+                    const effectiveLagTime = Math.max(1, Number(entry.lagTime || stored.lagTime || 1));
+                    const inventoryCostDay = Math.max(0, inventory) * inventoryPenaltyRate;
+                    const backlogCostDay = backlog * backlogPenaltyRate;
+                    const totalCostDay = inventoryCostDay + backlogCostDay;
+
+                    const row = [
+                        stored.timestamp || '',
+                        stored.participantId || '',
+                        stored.name || '',
+                        stored.role || '',
+                        stored.teamNumber || '',
+                        stored.treatmentGroup || '',
+                        round,
+                        day,
+                        entry.demand ?? '',
+                        entry.order ?? '',
+                        inventory,
+                        backlog,
+                        inventoryCostDay.toFixed(2),
+                        backlogCostDay.toFixed(2),
+                        totalCostDay.toFixed(2),
+                        effectiveLagTime,
+                        Math.max(1, Number(stored.lagTime || 1)),
+                        Number(stored.endowment ?? CRT_ENDOWMENT).toFixed(2),
+                        inventoryPenaltyRate.toFixed(4),
+                        backlogPenaltyRate.toFixed(4),
+                        teamBacklogPenaltyRate.toFixed(4),
+                        Number(stored.totalDays || 0)
+                    ];
+
+                    lines.push(row.map(sanitizeCSVValue).join(','));
+                });
+            });
+
+            const csv = lines.join('\n');
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `disaster_supply_chain_trial_per_person_per_round_${new Date().toISOString().slice(0, 10)}.csv`;
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            URL.revokeObjectURL(url);
         }
 
         async function downloadResultsCSV() {
@@ -3992,6 +4314,13 @@
                 return;
             }
 
+            // Trial mode skips the CRT question entirely and starts immediately.
+            if (pendingIsTrial) {
+                document.getElementById('crtAnswer').value = '';
+                startGame({ preventDefault: () => {} });
+                return;
+            }
+
             document.getElementById('crtInputValue').value = '';
             document.getElementById('crtInputValue').focus();
             document.getElementById('crtModal').classList.add('active');
@@ -4111,44 +4440,31 @@
             renderTeamChat();
         }
 
-        async function startGame(e) {
-            e.preventDefault();
+        // Shared by startGame() so all game/trial starts join rooms, sync state,
+        // and render identically. Trial sessions use a "TRIAL"-prefixed teamNumber
+        // so their server room/state never collides with the real game's room for
+        // the same team/letter.
+        async function activateGameSession({ teamNumber, treatmentGroup, role, crtAnswer, teamName, isTrial, cfg }) {
+            const effectiveTeamNumber = isTrial ? `TRIAL${teamNumber}` : teamNumber;
 
-            await syncGlobalAdminConfig();
-
-            const teamNumber = document.getElementById('teamNumber').value;
-            const treatmentGroup = document.getElementById('treatmentGroup').value;
-            const role = document.getElementById('playerRole').value;
-            const crtAnswer = document.getElementById('crtAnswer').value;
-            const teamName = getTeamName();
-
-            if (!teamNumber || !treatmentGroup) {
-                alert('Please select a team number and team letter.');
-                return;
-            }
-
-            if (!crtAnswer) {
-                alert('Please answer the CRT check before starting.');
-                return;
-            }
-
-            game.totalDays = getAdminConfig().totalDays;
+            game.isTrial = isTrial;
+            game.totalDays = cfg.totalDays;
             game.currentDay = 1;
             game.gameStarted = true;
             game.ended = false;
             game.history = [];
-            game.adminConfig = getAdminConfig();
+            game.adminConfig = cfg;
             game.crtAnswer = crtAnswer;
             game.crtCorrect = Math.abs(parseFloat(crtAnswer) - 0.05) < 0.00001 ? 1 : 0;
             game.participantId = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
             game.teamName = teamName;
-            game.teamNumber = teamNumber;
+            game.teamNumber = effectiveTeamNumber;
             game.treatmentGroup = treatmentGroup;
             game.treatment = getTreatmentConfig(treatmentGroup);
             game.players = {
-                player: new Player(teamName, role, getActiveLeadTime(), game.adminConfig.initialInventory)
+                player: new Player(teamName, role, getActiveLeadTime(), cfg.initialInventory)
             };
-            game.roomKey = `${teamNumber}_${treatmentGroup}`;
+            game.roomKey = `${effectiveTeamNumber}_${treatmentGroup}`;
             game.submittedThisRound = false;
             game.submittedRoles = [];
 
@@ -4160,8 +4476,8 @@
                 console.error('Failed to claim team role:', err);
                 const msg = err?.message || 'Could not join team role. Check console for details.';
                 showDiagnostic(msg, true);
-                alert(`Error starting game: ${msg}`);
-                return;
+                alert(`Error starting ${isTrial ? 'trial' : 'game'}: ${msg}`);
+                return false;
             }
 
             bindRoomSocketHandlers(game.roomKey);
@@ -4175,6 +4491,34 @@
             showScreen('gameScreen');
             publishTeamState();
             updateGameDisplay();
+            return true;
+        }
+
+        async function startGame(e) {
+            e.preventDefault();
+
+            await syncGlobalAdminConfig();
+
+            const teamNumber = document.getElementById('teamNumber').value;
+            const treatmentGroup = document.getElementById('treatmentGroup').value;
+            const role = document.getElementById('playerRole').value;
+            const crtAnswer = document.getElementById('crtAnswer').value;
+            const teamName = getTeamName();
+            const isTrial = !!pendingIsTrial;
+
+            if (!teamNumber || !treatmentGroup) {
+                alert('Please select a team number and team letter.');
+                return;
+            }
+
+            // Trial mode skips the CRT question entirely.
+            if (!isTrial && !crtAnswer) {
+                alert('Please answer the CRT check before starting.');
+                return;
+            }
+
+            const cfg = isTrial ? getTrialConfig() : getAdminConfig();
+            await activateGameSession({ teamNumber, treatmentGroup, role, crtAnswer, teamName, isTrial, cfg });
         }
 
         function generateDemand(day) {
@@ -4188,6 +4532,20 @@
             const totalCost = getSafePlayerTotalCost(p);
             const gameMoney = getRemainingEndowment(p);
             maybeAnnounceDisaster();
+
+            const banner = document.getElementById('gameModeBanner');
+            if (banner) {
+                if (game.isTrial) {
+                    banner.style.display = 'block';
+                    banner.style.background = '#fff3cd';
+                    banner.style.color = '#856404';
+                    banner.style.border = '1px solid #ffeeba';
+                    banner.textContent = `🧪 TRIAL — Round ${getCurrentGameDay()} of ${game.totalDays} (practice, no disruptions). The real game begins right after.`;
+                } else {
+                    banner.style.display = 'none';
+                    banner.textContent = '';
+                }
+            }
 
             document.getElementById('displayDay').textContent = getCurrentGameDay();
             document.getElementById('displayTeam').textContent = game.teamName || '-';
@@ -4824,12 +5182,28 @@
             const shouldPersistAllLogs = p.role === 'Federal Stockpile';
 
             if (shouldPersistAllLogs) {
-                const stored = getStoredResults();
-                results.forEach(record => stored.push(record));
-                saveStoredResults(stored);
+                if (game.isTrial) {
+                    // Trial data is tagged and kept in its own local store only —
+                    // it never touches the server/real-game results.
+                    const storedTrial = getStoredTrialResults();
+                    results.forEach(record => storedTrial.push({ ...record, isTrial: true }));
+                    saveStoredTrialResults(storedTrial);
+                } else {
+                    const stored = getStoredResults();
+                    results.forEach(record => stored.push(record));
+                    saveStoredResults(stored);
 
-                // Persist one record per role so the admin export can save every player's log.
-                results.forEach(record => postResultToServer(record));
+                    // Persist one record per role so the admin export can save every player's log.
+                    results.forEach(record => postResultToServer(record));
+                }
+            }
+
+            if (game.isTrial) {
+                // Skip the results podium for the trial; show a completion message, then
+                // automatically return to the home screen so players can start the real game.
+                showScreen('trialCompleteScreen');
+                setTimeout(() => resetGame(), 3000);
+                return;
             }
 
             // Display podium
@@ -4949,6 +5323,8 @@
             game.submittedThisRound = false;
             game.submittedRoles = [];
             game.ended = false;
+            game.isTrial = false;
+            pendingIsTrial = false;
             stopPresenceHeartbeat();
             stopTeamRosterSync();
             stopSubmissionSync();
