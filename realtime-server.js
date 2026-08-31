@@ -38,15 +38,12 @@ app.get('/health', (_req, res) => {
   });
 });
 
-app.get('/', (_req, res) => {
-  res.redirect('/beer_game.html');
-});
-
 // API endpoint to get team roster
 app.get('/api/team/:teamNum/:teamLetter/roster', (req, res) => {
   const { teamNum, teamLetter } = req.params;
   const teamKey = `${teamNum}_${teamLetter}`;
   const roster = teamRosters.get(teamKey) || [];
+  console.log(`GET /api/team/${teamNum}/${teamLetter}/roster → ${roster.length} members:`, roster.map(m => `${m.name} (${m.role})`));
   res.json({ roster });
 });
 
@@ -88,8 +85,7 @@ app.post('/api/team/:teamNum/:teamLetter/join', (req, res) => {
   console.log(`✅ Team ${teamKey} has ${roster.length} members:`, roster.map(m => `${m.name} (${m.role})`));
   res.json({ success: true, roster });
   
-  // Broadcast roster to the room key clients actually join, plus legacy room/event for compatibility.
-  io.to(teamKey).emit(`team-roster-${teamKey}`, roster);
+  // Broadcast to all Socket.IO clients listening to this team
   io.to(`team_${teamNum}_${teamLetter}`).emit('team-roster-updated', { teamNum, teamLetter, roster });
 });
 
@@ -102,107 +98,46 @@ app.get('/api/team/:teamNum/:teamLetter/state', (req, res) => {
   res.json({ state });
 });
 
-// API endpoint to record player submission for current round
-app.post('/api/team/:teamNum/:teamLetter/submit', (req, res) => {
-  const { teamNum, teamLetter } = req.params;
-  const { role, order, playerId } = req.body;
-  
-  if (!role || order === undefined || !playerId) {
-    return res.status(400).json({ error: 'Missing role, order, or playerId' });
-  }
-  
-  const teamKey = `${teamNum}_${teamLetter}`;
-  let state = teamStates.get(teamKey) || { roleSubmissions: {}, currentRound: 0 };
-  
-  if (!state.roleSubmissions) state.roleSubmissions = {};
-  
-  state.roleSubmissions[role] = {
-    playerId,
-    order: parseInt(order, 10),
-    submittedAt: new Date().toISOString()
-  };
-  
-  teamStates.set(teamKey, state);
-  state.lastSubmittedRole = role;
-  state.lastSubmittedAt = new Date().toISOString();
-  console.log(`✅ Team ${teamKey} - ${role} submitted order: ${order}.`);
-  res.json({ success: true, submittedRoles: Object.keys(state.roleSubmissions || {}) });
-  
-  // Broadcast submission update to all clients listening to this team.
-  const submissionPayload = {
-    teamNum,
-    teamLetter,
-    role,
-    submittedRoles: Object.keys(state.roleSubmissions || {})
-  };
-  io.to(teamKey).emit('team-submission-update', submissionPayload);
-  io.to(`team_${teamNum}_${teamLetter}`).emit('team-submission-update', submissionPayload);
-});
-
-// API endpoint to get current submission status
-app.get('/api/team/:teamNum/:teamLetter/submissions', (req, res) => {
-  const { teamNum, teamLetter } = req.params;
-  const teamKey = `${teamNum}_${teamLetter}`;
-  const state = teamStates.get(teamKey) || {};
-  const submittedRoles = Object.keys(state.roleSubmissions || {});
-  res.json({ submittedRoles });
-});
-
-// API endpoint to advance turn one step in the role sequence
-app.post('/api/team/:teamNum/:teamLetter/advance-turn', (req, res) => {
-  const { teamNum, teamLetter } = req.params;
-  const { nextTurn, submittedRole, currentDay, totalDays } = req.body;
-  
-  const teamKey = `${teamNum}_${teamLetter}`;
-  let state = teamStates.get(teamKey) || {};
-  
-  // Each handoff clears submission markers so only the current step is considered active.
-  state.roleSubmissions = {};
-  state.turnStep = (state.turnStep || 0) + 1;
-  state.teamTurn = nextTurn || 'End Users';
-  state.lastSubmittedRole = submittedRole || state.lastSubmittedRole || null;
-  if (Number.isFinite(Number(currentDay))) {
-    state.currentDay = Number(currentDay);
-  }
-  if (Number.isFinite(Number(totalDays)) && Number(totalDays) > 0) {
-    state.totalDays = Number(totalDays);
-  }
-  state.roundAdvancedAt = new Date().toISOString();
-  
-  teamStates.set(teamKey, state);
-  console.log(`✅ Team ${teamKey} advanced to step ${state.turnStep}, turn: ${state.teamTurn}`);
-  res.json({ success: true, nextStep: state.turnStep, teamTurn: state.teamTurn });
-  
-  // Broadcast turn advancement to all clients.
-  const turnPayload = {
-    teamNum,
-    teamLetter,
-    nextStep: state.turnStep,
-    teamTurn: state.teamTurn,
-    submittedRole: state.lastSubmittedRole || null,
-    currentDay: Number(state.currentDay || 0),
-    totalDays: Number(state.totalDays || 0)
-  };
-  io.to(teamKey).emit('team-turn-advanced', turnPayload);
-  io.to(`team_${teamNum}_${teamLetter}`).emit('team-turn-advanced', turnPayload);
-});
-
 // API endpoint to save team state
 app.post('/api/team/:teamNum/:teamLetter/state', (req, res) => {
   const { teamNum, teamLetter } = req.params;
-  const state = req.body;
+  const incoming = req.body;
   
-  if (!state) {
+  if (!incoming) {
     return res.status(400).json({ error: 'Missing state data' });
   }
   
   const teamKey = `${teamNum}_${teamLetter}`;
-  teamStates.set(teamKey, state);
-  console.log(`✅ Saved state for Team ${teamKey}: Round ${state.round || 0}, RoleIndex ${state.roleIndex || 0}, Orders:`, state.roundOrders);
-  res.json({ success: true, state });
+  const existing = teamStates.get(teamKey) || {};
+
+  // Merge instead of blind-replace so concurrent per-player publishes accumulate
+  // each tier's submitted order rather than clobbering each other. Without this,
+  // the last writer wins and the "all 4 submitted" check never passes, so the
+  // day never advances.
+  const prevDay = Number(existing.currentDay ?? 0);
+  const newDay = Number(incoming.currentDay ?? prevDay);
+  const dayAdvanced = newDay > prevDay;
+
+  const merged = {
+    ...existing,
+    ...incoming,
+    roleStates: { ...(existing.roleStates || {}), ...(incoming.roleStates || {}) },
+    dayOrders: dayAdvanced
+      ? (incoming.dayOrders || {})
+      : { ...(existing.dayOrders || {}), ...(incoming.dayOrders || {}) },
+    // Never let a lagging client's stale publish roll the day backwards.
+    currentDay: Math.max(prevDay, newDay),
+    // Preserve submission markers written by the /submit endpoint.
+    roleSubmissions: existing.roleSubmissions || incoming.roleSubmissions || {}
+  };
+
+  teamStates.set(teamKey, merged);
+  const dayOrderCount = merged.dayOrders ? Object.keys(merged.dayOrders).length : 0;
+  console.log(`✅ Saved state for Team ${teamKey}: Day ${merged.currentDay || 0}, dayOrders submitted: ${dayOrderCount}/4`);
+  res.json({ success: true, state: merged });
   
   // Broadcast to all Socket.IO clients listening to this team
-  io.to(`team_${teamNum}_${teamLetter}`).emit('team-state-updated', { teamNum, teamLetter, state });
+  io.to(`team_${teamNum}_${teamLetter}`).emit('team-state-updated', { teamNum, teamLetter, state: merged });
 });
 
 // API endpoint to get global admin config
@@ -261,65 +196,19 @@ app.post('/api/results', (req, res) => {
   io.emit('result-recorded', { result, totalResults: allResults.length });
 });
 
-// Admin endpoint to clear all stored participant results
-app.post('/api/admin/clear-results', (_req, res) => {
-  const cleared = allResults.length;
-  allResults.length = 0;
-  console.log(`✅ Cleared ${cleared} stored participant results`);
-  io.emit('results-cleared', { cleared });
-  res.json({ success: true, cleared });
-});
-
-// API endpoint to get chat logs from all active rooms
-app.get('/api/chat-logs', (_req, res) => {
-  const logs = [];
-
-  rooms.forEach((roomState, roomKey) => {
-    const messages = Array.isArray(roomState?.teamChat) ? roomState.teamChat : [];
-    messages.forEach((msg) => {
-      logs.push({
-        roomKey,
-        teamName: roomKey,
-        sender: msg?.sender || '-',
-        text: msg?.text || '',
-        timestamp: msg?.timestamp || new Date().toISOString()
-      });
-    });
-  });
-
-  console.log(`GET /api/chat-logs → ${logs.length} messages`);
-  res.json({ logs });
-});
-
-// Admin endpoint to clear all team rosters and states (seat reset only)
-app.post('/api/admin/clear-teams', async (_req, res) => {
-  const keys = new Set([
-    ...Array.from(teamRosters.keys()),
-    ...Array.from(teamStates.keys()),
-    ...Array.from(rooms.keys())
-  ]);
+// Admin endpoint to clear all team rosters and states (useful for tests)
+app.post('/api/admin/clear-teams', (req, res) => {
   const clearedTeams = [];
-
   try {
-    for (const key of keys) {
-      await setTeamRoster(key, []);
-      teamStates.delete(key);
-
-      const roomState = getRoomState(key);
-      roomState.teamState = null;
-      roomState.teamTurn = null;
-      roomState.teamChat = [];
-      await setRoomNode(key, 'teamState', null);
-      await setRoomNode(key, 'teamTurn', null);
-      await setRoomNode(key, 'teamChat', []);
-
-      // Broadcast reset to current room subscribers and legacy team_<key> listeners.
-      io.to(key).emit(`team-roster-${key}`, []);
-      io.to(key).emit(`room-node:${key}:teamState`, null);
-      io.to(key).emit('team-submission-update', { teamNum: null, teamLetter: null, role: null, submittedRoles: [] });
+    for (const key of Array.from(teamRosters.keys())) {
+      teamRosters.set(key, []);
+      // emit empty roster to the team room
       io.to(`team_${key}`).emit(`team-roster-${key}`, []);
-
       clearedTeams.push(key);
+    }
+
+    for (const key of Array.from(teamStates.keys())) {
+      teamStates.delete(key);
     }
 
     console.log(`✅ Cleared ${clearedTeams.length} team rosters and team states`);
