@@ -239,6 +239,18 @@ app.post('/api/admin/config', async (req, res) => {
   io.emit('global-admin-config', config);
 });
 
+// Lets the admin panel show whether config will actually survive a redeploy
+// (Render Disk writable) instead of silently relying on it.
+app.get('/api/admin/persistence-status', async (_req, res) => {
+  const diskWritable = await checkDiskPersistence();
+  res.json({
+    diskWritable,
+    diskPath: ADMIN_CONFIG_DIR,
+    redisConfigured: !!REDIS_URL,
+    redisConnected: !!redisState
+  });
+});
+
 // API endpoint to get all results
 app.get('/api/results', (req, res) => {
   console.log(`GET /api/results → ${allResults.length} results`);
@@ -361,6 +373,22 @@ async function writeAdminConfigToDisk(config) {
     await fs.writeFile(ADMIN_CONFIG_FILE, JSON.stringify(config, null, 2), 'utf8');
   } catch (err) {
     console.warn('Failed to persist admin config to disk:', err.message);
+  }
+}
+
+// Round-trips a small test file through the .persist mount so admins can verify
+// (via /api/admin/persistence-status) that the Render Disk actually survives redeploys.
+async function checkDiskPersistence() {
+  const testFile = path.join(ADMIN_CONFIG_DIR, '.write-test');
+  try {
+    await fs.mkdir(ADMIN_CONFIG_DIR, { recursive: true });
+    const token = String(Date.now());
+    await fs.writeFile(testFile, token, 'utf8');
+    const readBack = await fs.readFile(testFile, 'utf8');
+    return readBack === token;
+  } catch (err) {
+    console.warn('Disk persistence check failed:', err.message);
+    return false;
   }
 }
 
@@ -652,10 +680,13 @@ io.on('connection', (socket) => {
 initRedis()
   .then(async () => {
     try {
-      await getGlobalAdminConfig();
+      const config = await getGlobalAdminConfig();
+      console.log(`Admin config preload: ${config ? 'found persisted config' : 'no persisted config yet'}`);
     } catch (err) {
       console.warn('Initial admin config preload failed:', err.message);
     }
+    const diskOk = await checkDiskPersistence();
+    console.log(`Disk persistence check (.persist mount): ${diskOk ? 'OK — survives redeploys' : 'FAILED — attach a Render Disk at ' + ADMIN_CONFIG_DIR}`);
   })
   .finally(() => {
     server.listen(PORT, () => {
