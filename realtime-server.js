@@ -21,6 +21,34 @@ const teamRosters = new Map();
 const teamStates = new Map();
 const allResults = [];
 
+// Merges an incoming per-player team-state publish into the authoritative stored
+// state instead of blind-replacing it. This is what lets 4 players' concurrent
+// submissions accumulate in `dayOrders` so the "all 4 submitted -> advance day"
+// check can actually pass. Used by BOTH the REST /state endpoint and the socket
+// set-room-node path so the two channels share one consistent state.
+function mergeTeamState(teamKey, incoming) {
+  const existing = teamStates.get(teamKey) || {};
+  const prevDay = Number(existing.currentDay ?? 0);
+  const newDay = Number(incoming.currentDay ?? prevDay);
+  const dayAdvanced = newDay > prevDay;
+
+  const merged = {
+    ...existing,
+    ...incoming,
+    roleStates: { ...(existing.roleStates || {}), ...(incoming.roleStates || {}) },
+    dayOrders: dayAdvanced
+      ? (incoming.dayOrders || {})
+      : { ...(existing.dayOrders || {}), ...(incoming.dayOrders || {}) },
+    // Never let a lagging client's stale publish roll the day backwards.
+    currentDay: Math.max(prevDay, newDay),
+    // Preserve submission markers written by the /submit endpoint.
+    roleSubmissions: existing.roleSubmissions || incoming.roleSubmissions || {}
+  };
+
+  teamStates.set(teamKey, merged);
+  return merged;
+}
+
 // Create server FIRST so routes can access io
 const server = http.createServer(app);
 const io = new Server(server, {
@@ -108,35 +136,15 @@ app.post('/api/team/:teamNum/:teamLetter/state', (req, res) => {
   }
   
   const teamKey = `${teamNum}_${teamLetter}`;
-  const existing = teamStates.get(teamKey) || {};
+  const merged = mergeTeamState(teamKey, incoming);
 
-  // Merge instead of blind-replace so concurrent per-player publishes accumulate
-  // each tier's submitted order rather than clobbering each other. Without this,
-  // the last writer wins and the "all 4 submitted" check never passes, so the
-  // day never advances.
-  const prevDay = Number(existing.currentDay ?? 0);
-  const newDay = Number(incoming.currentDay ?? prevDay);
-  const dayAdvanced = newDay > prevDay;
-
-  const merged = {
-    ...existing,
-    ...incoming,
-    roleStates: { ...(existing.roleStates || {}), ...(incoming.roleStates || {}) },
-    dayOrders: dayAdvanced
-      ? (incoming.dayOrders || {})
-      : { ...(existing.dayOrders || {}), ...(incoming.dayOrders || {}) },
-    // Never let a lagging client's stale publish roll the day backwards.
-    currentDay: Math.max(prevDay, newDay),
-    // Preserve submission markers written by the /submit endpoint.
-    roleSubmissions: existing.roleSubmissions || incoming.roleSubmissions || {}
-  };
-
-  teamStates.set(teamKey, merged);
   const dayOrderCount = merged.dayOrders ? Object.keys(merged.dayOrders).length : 0;
   console.log(`✅ Saved state for Team ${teamKey}: Day ${merged.currentDay || 0}, dayOrders submitted: ${dayOrderCount}/4`);
   res.json({ success: true, state: merged });
   
-  // Broadcast to all Socket.IO clients listening to this team
+  // Broadcast the MERGED state so every client sees one consistent accumulated
+  // set of orders (via both the room key and the legacy team_ channel).
+  io.to(`${teamNum}_${teamLetter}`).emit(`room-node:${teamNum}_${teamLetter}:teamState`, merged);
   io.to(`team_${teamNum}_${teamLetter}`).emit('team-state-updated', { teamNum, teamLetter, state: merged });
 });
 
@@ -482,13 +490,23 @@ io.on('connection', (socket) => {
   socket.on('set-room-node', async ({ roomKey, nodeName, payload }) => {
     if (!roomKey || !nodeName) return;
 
+    // For teamState, merge into the shared authoritative state (same store the
+    // REST /state endpoint uses) and broadcast the MERGED result, so every
+    // client receives one consistent accumulated set of orders rather than each
+    // player's individual partial view. This is what allows the day to advance
+    // once all four tiers have submitted.
+    let outgoing = payload;
+    if (nodeName === 'teamState' && payload && typeof payload === 'object') {
+      outgoing = mergeTeamState(roomKey, payload);
+    }
+
     try {
-      await setRoomNode(roomKey, nodeName, payload);
+      await setRoomNode(roomKey, nodeName, outgoing);
     } catch (err) {
       console.error('Failed to persist room node:', err);
     }
 
-    io.to(roomKey).emit(`room-node:${roomKey}:${nodeName}`, payload);
+    io.to(roomKey).emit(`room-node:${roomKey}:${nodeName}`, outgoing);
   });
 
   socket.on('get-room-node', async ({ roomKey, nodeName }) => {
