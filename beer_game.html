@@ -2878,6 +2878,7 @@
                     currentDay: game.currentDay,
                     totalDays: game.totalDays,
                     isTrial: !!game.isTrial,
+                    gameConfig: { ...game.adminConfig, shocks: [...(game.adminConfig?.shocks || [])] },
                     teamTurn: roles[0],
                     roleStates: {}
                 };

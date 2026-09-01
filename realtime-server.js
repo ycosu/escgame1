@@ -53,17 +53,71 @@ function mergeTeamState(teamKey, incoming) {
   return merged;
 }
 
-function requestResolver(roomKey, state, excludedPlayerId = null) {
-  const sockets = io.sockets.adapter.rooms.get(roomKey);
-  if (!sockets) return false;
-  for (const socketId of sockets) {
-    const socket = io.sockets.sockets.get(socketId);
-    if (!socket || socket.data.playerId === excludedPlayerId) continue;
-    state.resolverPlayerId = socket.data.playerId;
-    socket.emit('resolve-team-day', { roomKey, day: Number(state.currentDay || 0), resolverPlayerId: state.resolverPlayerId, state });
-    return true;
-  }
-  return false;
+const ROLES = ['End Users', 'State/Local Hubs', 'Regional Hubs', 'Federal Stockpile'];
+
+function resolveTeamDay(state) {
+  const day = Number(state.currentDay || 1);
+  const config = state.gameConfig || globalAdminConfig || {};
+  const baseLag = Math.max(1, Number(config.lagTime || 1));
+  const shocks = state.isTrial ? [] : (Array.isArray(config.shocks) ? config.shocks : []);
+  const shockLag = shocks.filter(shock => Number(shock.round) === day).reduce((sum, shock) => sum + Math.max(0, Number(shock.lagDelta || 0)), 0);
+  const lag = baseLag + shockLag;
+  const roleStates = state.roleStates || {};
+  const updates = {};
+
+  ROLES.forEach((role, index) => {
+    const roleState = roleStates[role];
+    const receive = (queue) => {
+      let quantity = 0;
+      const remaining = [];
+      (Array.isArray(queue) ? queue : []).forEach(entry => {
+        const item = entry && typeof entry === 'object' ? entry : { quantity: Number(entry || 0), dueDay: day };
+        if (Number(item.dueDay) <= day) quantity += Number(item.quantity || 0);
+        else remaining.push(item);
+      });
+      return { quantity, remaining };
+    };
+    const shipments = receive(roleState.incomingShipments);
+    const information = receive(roleState.incomingOrders);
+    const production = receive(roleState.factoryOrders);
+    const incomingDemand = index === 0 ? (state.isTrial ? 4 : (shocks.some(shock => Number(shock.round) === day) ? 8 : 4)) : information.quantity;
+    const available = Math.max(0, Number(roleState.inventory || 0)) + shipments.quantity + (role === 'Federal Stockpile' ? production.quantity : 0);
+    const totalDemand = incomingDemand + Math.max(0, Number(roleState.backorders || 0));
+    const shipped = Math.min(available, totalDemand);
+    updates[role] = { roleState, shipments, information, production, incomingDemand, shipped, inventory: available - shipped, backlog: totalDemand - shipped, order: Number(state.dayOrders[role] || 0) };
+  });
+
+  const teamPenalty = updates['End Users'].backlog > 0 ? Math.max(0, Number(config.teamBacklogPenaltyRate || 0)) : 0;
+  ROLES.forEach((role, index) => {
+    const update = updates[role];
+    const roleState = update.roleState;
+    roleState.incomingShipments = update.shipments.remaining;
+    roleState.incomingOrders = update.information.remaining;
+    roleState.factoryOrders = update.production.remaining;
+    const upstream = ROLES[index + 1];
+    const downstream = ROLES[index - 1];
+    if (downstream) roleStates[downstream].incomingShipments.push({ quantity: update.shipped, dueDay: day + lag });
+    if (upstream) roleStates[upstream].incomingOrders.push({ quantity: update.order, dueDay: day + lag });
+    else roleState.factoryOrders.push({ quantity: update.order, dueDay: day + lag });
+    const inventoryCost = update.inventory * Math.max(0, Number(config.inventoryPenaltyRate || 0));
+    const backlogCost = update.backlog * Math.max(0, Number(config.backlogPenaltyRate || 0));
+    const roundCost = inventoryCost + backlogCost + teamPenalty;
+    Object.assign(roleState, { inventory: update.inventory, backorders: update.backlog, demand: update.incomingDemand, receivedDemand: update.incomingDemand, order: 0, pendingOrder: null, lastDayOrder: update.order, lastRoundCost: roundCost });
+    roleState.inventoryCostTotal = Number((Number(roleState.inventoryCostTotal || 0) + inventoryCost).toFixed(2));
+    roleState.backlogCostTotal = Number((Number(roleState.backlogCostTotal || 0) + backlogCost).toFixed(2));
+    roleState.shortagePenaltyCost = Number((Number(roleState.shortagePenaltyCost || 0) + teamPenalty).toFixed(2));
+    roleState.totalCost = Number((Number(roleState.totalCost || 0) + roundCost).toFixed(2));
+    roleState.history = Array.isArray(roleState.history) ? roleState.history : [];
+    roleState.history.push({ day, role, arrived: update.shipments.quantity, demand: update.incomingDemand, receivedDemand: update.incomingDemand, shipped: update.shipped, order: update.order, inventory: update.inventory, backorders: update.backlog, lagTime: lag, shortageDay: teamPenalty ? 1 : 0, roundCost });
+  });
+
+  state.lastResolvedDay = day;
+  state.dayOrders = {};
+  state.roleSubmissions = {};
+  state.resolvingDay = null;
+  if (day < Number(state.totalDays || 20)) state.currentDay = day + 1;
+  else state.completed = true;
+  return state;
 }
 
 // Create server FIRST so routes can access io
@@ -175,8 +229,8 @@ app.post('/api/team/:teamNum/:teamLetter/submit', (req, res) => {
   const requiredRoles = ['End Users', 'State/Local Hubs', 'Regional Hubs', 'Federal Stockpile'];
   const currentDay = Number(state.currentDay || 0);
   const allSubmitted = requiredRoles.every(requiredRole => state.dayOrders[requiredRole] !== undefined && state.dayOrders[requiredRole] !== null);
-  const shouldResolve = allSubmitted && state.lastResolvedDay !== currentDay && state.resolvingDay !== currentDay;
-  if (shouldResolve) state.resolvingDay = currentDay;
+  const shouldResolve = allSubmitted && state.lastResolvedDay !== currentDay;
+  if (shouldResolve) resolveTeamDay(state);
 
   teamStates.set(teamKey, state);
   queueActiveStateWrite();
@@ -193,16 +247,6 @@ app.post('/api/team/:teamNum/:teamLetter/submit', (req, res) => {
   io.to(teamKey).emit('team-submission-update', submissionPayload);
   io.to(`team_${teamNum}_${teamLetter}`).emit('team-submission-update', submissionPayload);
   io.to(teamKey).emit(`room-node:${teamKey}:teamState`, state);
-
-  if (shouldResolve) {
-    requestResolver(teamKey, state);
-    setTimeout(() => {
-      const current = teamStates.get(teamKey);
-      if (current && current.lastResolvedDay !== currentDay && current.resolvingDay === currentDay) {
-        requestResolver(teamKey, current, current.resolverPlayerId);
-      }
-    }, 3000);
-  }
 });
 
 // API endpoint to get current submission status
@@ -845,15 +889,6 @@ io.on('connection', (socket) => {
     if (nodeName === 'teamState' && payload && typeof payload === 'object') {
       outgoing = mergeTeamState(roomKey, payload);
 
-      const requiredRoles = ['End Users', 'State/Local Hubs', 'Regional Hubs', 'Federal Stockpile'];
-      const submittedRoles = outgoing.dayOrders || {};
-      const currentDay = Number(outgoing.currentDay || 0);
-      const allSubmitted = requiredRoles.every(role => submittedRoles[role] !== undefined && submittedRoles[role] !== null);
-
-      if (allSubmitted && outgoing.lastResolvedDay !== currentDay && outgoing.resolvingDay !== currentDay) {
-        outgoing.resolvingDay = currentDay;
-        requestResolver(roomKey, outgoing);
-      }
     }
 
     try {
