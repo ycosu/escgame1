@@ -3059,7 +3059,9 @@
                 game.sharedTeamState = {
                     ...existing,
                     ...incoming,
-                    roleStates: { ...(existing.roleStates || {}), ...(incoming.roleStates || {}) },
+                    roleStates: incoming.visibilityFiltered
+                        ? (incoming.roleStates || {})
+                        : { ...(existing.roleStates || {}), ...(incoming.roleStates || {}) },
                     dayOrders: dayAdvanced
                         ? (incoming.dayOrders || {})
                         : { ...(existing.dayOrders || {}), ...(incoming.dayOrders || {}) }
@@ -3254,7 +3256,7 @@
             try {
                 const base = (typeof getSocketUrl === 'function' ? (getSocketUrl() || '') : '');
                 const cleanBase = base.replace(/\/$/, '');
-                const endpoint = `${cleanBase}/api/team/${encodeURIComponent(game.teamNumber)}/${encodeURIComponent(game.treatmentGroup)}/state?t=${Date.now()}`;
+                const endpoint = `${cleanBase}/api/team/${encodeURIComponent(game.teamNumber)}/${encodeURIComponent(game.treatmentGroup)}/state?t=${Date.now()}&role=${encodeURIComponent(game.players?.player?.role || '')}`;
                 const response = await fetch(endpoint, { cache: 'no-store' });
                 if (!response.ok) return;
 

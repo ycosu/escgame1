@@ -39,7 +39,9 @@ function mergeTeamState(teamKey, incoming) {
   const merged = {
     ...existing,
     ...incoming,
-    gameConfig: existing.gameConfig || incoming.gameConfig,
+    roomKey: existing.roomKey || incoming.roomKey || teamKey,
+    isTrial: String(teamKey).startsWith('TRIAL'),
+    gameConfig: existing.gameConfig || getTeamConfigSnapshot(teamKey),
     roleStates: { ...(existing.roleStates || {}), ...(incoming.roleStates || {}) },
     dayOrders: dayAdvanced
       ? (incoming.dayOrders || {})
@@ -56,6 +58,58 @@ function mergeTeamState(teamKey, incoming) {
 }
 
 const ROLES = ['End Users', 'State/Local Hubs', 'Regional Hubs', 'Federal Stockpile'];
+function isHighVisibilityRoom(roomKey) {
+  const treatment = String(roomKey || '').split('_').pop().toUpperCase();
+  return treatment === 'A' || treatment === 'B';
+}
+
+function getTeamConfigSnapshot(roomKey) {
+  const trial = String(roomKey || '').startsWith('TRIAL');
+  const source = trial ? (globalTrialConfig || {}) : (globalAdminConfig || {});
+  return {
+    ...source,
+    totalDays: trial ? 5 : Math.max(1, Number(source.totalDays || 20)),
+    shocks: trial ? [] : [...(source.shocks || [])],
+    shockScheduleText: trial ? '' : (source.shockScheduleText || '')
+  };
+}
+
+function filterTeamStateForRole(state, role) {
+  if (isHighVisibilityRoom(state.roomKey) || !role) return state;
+  const roleIndex = ROLES.indexOf(role);
+  const downstreamRole = roleIndex > 0 ? ROLES[roleIndex - 1] : null;
+  const filteredStates = {};
+  if (state.roleStates?.[role]) filteredStates[role] = state.roleStates[role];
+  if (downstreamRole && state.roleStates?.[downstreamRole]) {
+    filteredStates[downstreamRole] = {
+      role: downstreamRole,
+      lastDayOrder: state.roleStates[downstreamRole].lastDayOrder
+    };
+  }
+  return {
+    roomKey: state.roomKey,
+    teamName: state.teamName,
+    currentDay: state.currentDay,
+    totalDays: state.totalDays,
+    isTrial: state.isTrial,
+    lastResolvedDay: state.lastResolvedDay,
+    completed: state.completed,
+    submittedRoles: Object.keys(state.dayOrders || {}),
+    visibilityFiltered: true,
+    roleStates: filteredStates
+  };
+}
+
+function broadcastTeamState(roomKey, state) {
+  const sockets = io.sockets.adapter.rooms.get(roomKey);
+  if (!sockets) return;
+  for (const socketId of sockets) {
+    const socket = io.sockets.sockets.get(socketId);
+    if (!socket) continue;
+    const role = socket.data.playerData?.role;
+    socket.emit(`room-node:${roomKey}:teamState`, filterTeamStateForRole(state, role));
+  }
+}
 
 function resolveTeamDay(state) {
   const day = Number(state.currentDay || 1);
@@ -203,6 +257,9 @@ app.post('/api/team/:teamNum/:teamLetter/join', (req, res) => {
   }
   
   const teamKey = `${teamNum}_${teamLetter}`;
+  if (teamStates.get(teamKey)?.completed) {
+    return res.status(409).json({ error: 'This team session is complete. Use a different team number and letter.' });
+  }
   let roster = teamRosters.get(teamKey) || [];
   
   // Check if role is already taken by another player
@@ -242,7 +299,7 @@ app.get('/api/team/:teamNum/:teamLetter/state', (req, res) => {
   const teamKey = `${teamNum}_${teamLetter}`;
   const state = teamStates.get(teamKey);
   console.log(`GET /api/team/${teamNum}/${teamLetter}/state → state exists: ${!!state}`);
-  res.json({ state });
+  res.json({ state: state ? filterTeamStateForRole(state, req.query.role) : null });
 });
 
 // API endpoint to record player submission for current round
@@ -301,7 +358,7 @@ app.post('/api/team/:teamNum/:teamLetter/submit', async (req, res) => {
   };
   io.to(teamKey).emit('team-submission-update', submissionPayload);
   io.to(`team_${teamNum}_${teamLetter}`).emit('team-submission-update', submissionPayload);
-  io.to(teamKey).emit(`room-node:${teamKey}:teamState`, state);
+  broadcastTeamState(teamKey, state);
 });
 
 // API endpoint to get current submission status
@@ -668,7 +725,7 @@ async function loadActiveStateFromDisk() {
   try {
     const snapshot = JSON.parse(await fs.readFile(ACTIVE_TEAMS_FILE, 'utf8'));
     if (Array.isArray(snapshot.teamStates)) snapshot.teamStates.forEach(([key, value]) => teamStates.set(key, value));
-    if (Array.isArray(snapshot.teamRosters)) snapshot.teamRosters.forEach(([key, value]) => teamRosters.set(key, value));
+    if (Array.isArray(snapshot.teamRosters)) snapshot.teamRosters.forEach(([key, value]) => teamRosters.set(key, value.map(member => ({ ...member, online: false }))));
     if (Array.isArray(snapshot.rooms)) snapshot.rooms.forEach(([key, value]) => rooms.set(key, value));
   } catch (err) {
     if (err.code !== 'ENOENT') console.warn('Failed to load active teams:', err.message);
@@ -952,7 +1009,8 @@ io.on('connection', (socket) => {
       console.error('Failed to persist room node:', err);
     }
 
-    io.to(roomKey).emit(`room-node:${roomKey}:${nodeName}`, outgoing);
+    if (nodeName === 'teamState') broadcastTeamState(roomKey, outgoing);
+    else io.to(roomKey).emit(`room-node:${roomKey}:${nodeName}`, outgoing);
   });
 
   socket.on('get-room-node', async ({ roomKey, nodeName }) => {
@@ -967,7 +1025,8 @@ io.on('connection', (socket) => {
 
     if (value === undefined || value === null) return;
 
-    socket.emit(`room-node:${roomKey}:${nodeName}`, value);
+    const role = socket.data.playerData?.role;
+    socket.emit(`room-node:${roomKey}:${nodeName}`, nodeName === 'teamState' ? filterTeamStateForRole(value, role) : value);
   });
 
   socket.on('set-global-admin-config', async (payload) => {
