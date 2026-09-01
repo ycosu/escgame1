@@ -2564,6 +2564,7 @@
         }
 
         function getExternalDemand(dayNumber) {
+            if (game.isTrial) return 4;
             return getActiveShocks(dayNumber).length > 0 ? 8 : 4;
         }
 
