@@ -2238,10 +2238,6 @@
                             <p style="color:#666;margin-top:-8px;">The trial never has disruptions — it always runs with no shocks.</p>
                             <div class="admin-grid">
                                 <div class="form-group">
-                                    <label for="trialTotalDays">Trial Rounds</label>
-                                    <input type="number" id="trialTotalDays" min="1" max="50" value="5">
-                                </div>
-                                <div class="form-group">
                                     <label for="trialLagTime">Lag / Lead Time (days)</label>
                                     <input type="number" id="trialLagTime" min="1" max="10" value="1">
                                 </div>
@@ -2490,7 +2486,7 @@
                 return {
                     ...base,
                     ...parsed,
-                    totalDays: Math.max(1, parseInt(parsed.totalDays || base.totalDays, 10)),
+                    totalDays: 5,
                     lagTime: Math.max(1, parseInt(parsed.lagTime || base.lagTime, 10)),
                     initialInventory: Math.max(0, parseInt(parsed.initialInventory ?? base.initialInventory, 10) || base.initialInventory),
                     endowment: Math.max(0, Number(parsed.endowment ?? base.endowment)),
@@ -3678,7 +3674,6 @@
             document.getElementById('adminShockSchedule').value = cfg.shockScheduleText || serializeShockSchedule(cfg.shocks || []);
 
             const trialCfg = getTrialConfig();
-            document.getElementById('trialTotalDays').value = trialCfg.totalDays;
             document.getElementById('trialLagTime').value = trialCfg.lagTime;
             document.getElementById('trialInitialInventory').value = trialCfg.initialInventory;
             document.getElementById('trialEndowment').value = trialCfg.endowment;
@@ -3890,7 +3885,7 @@
 
         function saveTrialAdminConfig() {
             const lagTime = Math.max(1, parseInt(document.getElementById('trialLagTime').value || '1', 10));
-            const totalDays = Math.max(1, parseInt(document.getElementById('trialTotalDays').value || '5', 10));
+            const totalDays = 5;
 
             const cfg = {
                 totalDays,
