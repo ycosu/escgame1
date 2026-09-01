@@ -2986,11 +2986,18 @@
                 game.socket.off(oldTurnEvent, oldTurnHandler);
             }
 
+            const oldResolveEvent = game.socketHandlers.resolveEvent;
+            const oldResolveHandler = game.socketHandlers.resolveHandler;
+            if (oldResolveEvent && oldResolveHandler) {
+                game.socket.off(oldResolveEvent, oldResolveHandler);
+            }
+
             const rosterEvent = `team-roster-${roomKey}`;
             const chatEvent = `room-node:${roomKey}:teamChat`;
             const stateEvent = `room-node:${roomKey}:teamState`;
             const submissionEvent = 'team-submission-update';
             const turnEvent = 'team-turn-advanced';
+            const resolveEvent = 'resolve-team-day';
 
             const rosterHandler = (roster) => {
                 game.teamRoster = Array.isArray(roster) ? roster : [];
@@ -3063,11 +3070,18 @@
                 }
             };
 
+            const resolveHandler = async (data) => {
+                if (!data || data.roomKey !== game.roomKey || Number(data.day) !== Number(game.currentDay)) return;
+                await syncTeamStateFromServer();
+                resolveCompletedDay();
+            };
+
             game.socket.on(rosterEvent, rosterHandler);
             game.socket.on(chatEvent, chatHandler);
             game.socket.on(stateEvent, stateHandler);
             game.socket.on(submissionEvent, submissionHandler);
             game.socket.on(turnEvent, turnHandler);
+            game.socket.on(resolveEvent, resolveHandler);
 
             game.socketHandlers.rosterEvent = rosterEvent;
             game.socketHandlers.rosterHandler = rosterHandler;
@@ -3079,6 +3093,8 @@
             game.socketHandlers.submissionHandler = submissionHandler;
             game.socketHandlers.turnEvent = turnEvent;
             game.socketHandlers.turnHandler = turnHandler;
+            game.socketHandlers.resolveEvent = resolveEvent;
+            game.socketHandlers.resolveHandler = resolveHandler;
         }
 
         function joinRealtimeRoom() {
@@ -5022,6 +5038,20 @@
             const allSubmitted = roles.every((r) => dayOrders[r] !== undefined && dayOrders[r] !== null);
             if (!allSubmitted) return;
 
+            if (game.socketConnected) return;
+
+            resolveCompletedDay();
+        }
+
+        function resolveCompletedDay() {
+            const shared = game.sharedTeamState;
+            if (!shared || game.ended) return;
+
+            const roles = getSequentialRoleOrder();
+            const dayOrders = shared.dayOrders || {};
+            const allSubmitted = roles.every((role) => dayOrders[role] !== undefined && dayOrders[role] !== null);
+            if (!allSubmitted) return;
+
             // Guard against resolving the same day twice. Any connected teammate's
             // client may resolve once everyone has submitted (not just one fixed
             // role), so the round advances even if a specific tier's browser is
@@ -5048,6 +5078,7 @@
             // Clear the just-resolved orders so the new day starts fresh; otherwise
             // the stale "all 4 submitted" set would immediately re-trigger a resolve.
             shared.dayOrders = {};
+            shared.resolvingDay = null;
             game.sharedTeamState = shared;
             syncCurrentPlayerFromSharedState();
 
