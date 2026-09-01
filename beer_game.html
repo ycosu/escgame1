@@ -2155,7 +2155,7 @@
                             <div class="admin-grid">
                                 <div class="form-group">
                                     <label for="adminTotalDays">Game Days</label>
-                                    <input type="number" id="adminTotalDays" min="1" max="200" value="52">
+                                    <input type="number" id="adminTotalDays" min="1" max="200" value="20">
                                 </div>
                                 <div class="form-group">
                                     <label for="adminLagTime">Lag / Lead Time (days)</label>
@@ -2334,7 +2334,7 @@
         const DEFAULT_SOCKET_URL = getDefaultSocketUrl();
 
         const defaultAdminConfig = {
-            totalDays: 52,
+            totalDays: 20,
             lagTime: 1,
             initialInventory: 12,
             endowment: CRT_ENDOWMENT,
@@ -2734,7 +2734,7 @@
         const game = {
             players: {},
             currentDay: 0,
-            totalDays: 52,
+            totalDays: 20,
             history: [],
             baseDemand: 4,
             gameStarted: false,
@@ -2888,7 +2888,7 @@
             });
 
             game.sharedTeamState.currentDay = Number(game.currentDay || 0);
-            game.sharedTeamState.totalDays = Number(game.totalDays || 52);
+            game.sharedTeamState.totalDays = Number(game.totalDays || 20);
             game.sharedTeamState.isTrial = !!(game.sharedTeamState.isTrial ?? game.isTrial);
             game.sharedTeamState.teamTurn = game.sharedTeamState.teamTurn || roles[0];
 
@@ -3701,7 +3701,7 @@
             const lagTime = Math.max(1, parseInt(document.getElementById('adminLagTime').value || '1', 10));
             const shockLagSum = parsedSchedule.shocks.reduce((sum, s) => sum + Math.max(0, Number(s?.lagDelta || 0)), 0);
             const minimumDays = Math.max(1, Math.ceil(lagTime + shockLagSum + 1));
-            const requestedDays = Math.max(1, parseInt(document.getElementById('adminTotalDays').value || '52', 10));
+            const requestedDays = Math.max(1, parseInt(document.getElementById('adminTotalDays').value || '20', 10));
             const totalDays = Math.max(minimumDays, requestedDays);
 
             const cfg = {
