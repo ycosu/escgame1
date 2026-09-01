@@ -2554,7 +2554,7 @@
 
         function getActiveLeadTime() {
             const baseLag = Math.max(1, Number(game.adminConfig?.lagTime ?? defaultAdminConfig.lagTime));
-            const dayNumber = game.currentDay + 1;
+            const dayNumber = game.currentDay;
             const shockLag = getActiveShocks(dayNumber).reduce((sum, s) => sum + Math.max(0, Number(s?.lagDelta || 0)), 0);
             return Math.max(1, baseLag + shockLag);
         }
@@ -3380,6 +3380,29 @@
             }
         }
 
+        async function syncTrialAdminConfig() {
+            const localCfg = getTrialConfig();
+            try {
+                const base = (typeof getSocketUrl === 'function' ? (getSocketUrl() || '') : '');
+                const cleanBase = base.replace(/\/$/, '');
+                const response = await fetch(`${cleanBase}/api/admin/trial-config?t=${Date.now()}`, { cache: 'no-store' });
+                if (!response.ok) return localCfg;
+                const payload = await response.json();
+                if (payload?.config && typeof payload.config === 'object') {
+                    saveTrialConfigToStorage(payload.config);
+                    return getTrialConfig();
+                }
+                await fetch(`${cleanBase}/api/admin/trial-config`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(localCfg)
+                });
+            } catch (err) {
+                console.warn('Failed to sync trial config:', err);
+            }
+            return getTrialConfig();
+        }
+
         async function persistTeamStateToServer(statePayload) {
             if (!game.teamNumber || !game.treatmentGroup || !statePayload) return;
 
@@ -3512,6 +3535,12 @@
                 if (backlogPenaltyInput) backlogPenaltyInput.value = game.adminConfig.backlogPenaltyRate;
                 if (teamBacklogPenaltyInput) teamBacklogPenaltyInput.value = game.adminConfig.teamBacklogPenaltyRate;
                 if (shockScheduleInput) shockScheduleInput.value = game.adminConfig.shockScheduleText || serializeShockSchedule(game.adminConfig.shocks || []);
+            });
+
+            game.socket.on('global-trial-config', (cfg) => {
+                if (!cfg || typeof cfg !== 'object') return;
+                saveTrialConfigToStorage(cfg);
+                if (game.gameStarted && game.isTrial) game.adminConfig = getTrialConfig();
             });
 
             updateTurnControls();
@@ -3880,6 +3909,11 @@
             };
 
             saveTrialConfigToStorage(cfg);
+            void fetch(`${(getSocketUrl() || '').replace(/\/$/, '')}/api/admin/trial-config`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(cfg)
+            }).catch(err => console.warn('Failed to persist trial controls:', err));
             alert('Trial controls saved. New trials will use these settings. The trial never has disruptions.');
         }
 
@@ -4581,7 +4615,7 @@
                 return;
             }
 
-            const cfg = isTrial ? getTrialConfig() : getAdminConfig();
+            const cfg = isTrial ? await syncTrialAdminConfig() : getAdminConfig();
             await activateGameSession({ teamNumber, treatmentGroup, role, crtAnswer, teamName, isTrial, cfg });
         }
 
