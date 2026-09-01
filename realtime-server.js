@@ -498,6 +498,16 @@ io.on('connection', (socket) => {
     let outgoing = payload;
     if (nodeName === 'teamState' && payload && typeof payload === 'object') {
       outgoing = mergeTeamState(roomKey, payload);
+
+      const requiredRoles = ['End Users', 'State/Local Hubs', 'Regional Hubs', 'Federal Stockpile'];
+      const submittedRoles = outgoing.dayOrders || {};
+      const currentDay = Number(outgoing.currentDay || 0);
+      const allSubmitted = requiredRoles.every(role => submittedRoles[role] !== undefined && submittedRoles[role] !== null);
+
+      if (allSubmitted && outgoing.lastResolvedDay !== currentDay && outgoing.resolvingDay !== currentDay) {
+        outgoing.resolvingDay = currentDay;
+        socket.emit('resolve-team-day', { roomKey, day: currentDay });
+      }
     }
 
     try {
