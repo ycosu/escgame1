@@ -2010,9 +2010,9 @@
                                 <h3>⚙️ Daily Order Decision</h3>
                                 
                                 <div class="form-group">
-                                    <label for="orderQuantity">How many units do you want to order? (0-100)</label>
+                                    <label for="orderQuantity">How many units do you want to order? (0-1,000)</label>
                                     <div class="order-inline-row">
-                                        <input type="number" id="orderQuantity" min="0" max="100" value="" placeholder="Enter quantity" required>
+                                        <input type="number" id="orderQuantity" min="0" max="1000" value="" placeholder="Enter quantity" required>
                                         <button id="submitOrderButton" class="btn btn-primary btn-small" onclick="submitOrderDay()">SUBMIT</button>
                                         <button class="btn btn-secondary btn-small" onclick="showRecordSheet()">Record sheet</button>
                                     </div>
@@ -2048,7 +2048,7 @@
                             </div>
                         </div>
 
-                        <h3 style="margin: 30px 0 8px; color: #333;">Supply Chain Status</h3>
+                        <h3 style="margin: 30px 0 8px; color: #333;">Supply Chain Status (Previous Day)</h3>
                         <div class="supply-chain" id="supplyChainDisplay"></div>
 
                         <div id="debugTimelinePanel" class="debug-timeline-panel hidden-for-players"></div>
@@ -4992,8 +4992,8 @@
         async function submitOrderDay() {
             const orderQty = parseInt(document.getElementById('orderQuantity').value);
 
-            if (isNaN(orderQty) || orderQty < 0 || orderQty > 100) {
-                alert('Please enter a valid order quantity (0-100)');
+            if (isNaN(orderQty) || orderQty < 0 || orderQty > 1000) {
+                alert('Please enter a valid order quantity (0-1,000)');
                 return;
             }
 
@@ -5083,6 +5083,7 @@
 
             shared.currentDay = game.currentDay;
             shared.totalDays = game.totalDays;
+            if (completedFinalDay) shared.completedByPlayerId = game.participantId;
             // Clear the just-resolved orders so the new day starts fresh; otherwise
             // the stale "all 4 submitted" set would immediately re-trigger a resolve.
             shared.dayOrders = {};
@@ -5258,7 +5259,10 @@
             }).sort((left, right) => left.rank - right.rank);
 
             const currentPlayerResult = results.find(r => r.role === p.role) || results[0];
-            const shouldPersistAllLogs = p.role === 'Federal Stockpile';
+            const completedByPlayerId = game.sharedTeamState?.completedByPlayerId;
+            const shouldPersistAllLogs = completedByPlayerId
+                ? completedByPlayerId === game.participantId
+                : p.role === 'Federal Stockpile';
 
             if (shouldPersistAllLogs) {
                 if (game.isTrial) {
