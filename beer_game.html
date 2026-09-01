@@ -1967,7 +1967,7 @@
                                 <option value="">Select your role...</option>
                                 <option value="End Users">👥 End Users</option>
                                 <option value="State/Local Hubs">🏛️ State/Local Hubs</option>
-                                <option value="Regional Hubs">🌍 Regional Hubs</option>
+                                <option value="Regional Hubs">🗺️ Regional Hubs</option>
                                 <option value="Federal Stockpile">🏢 Federal Stockpile</option>
                             </select>
                         </div>
@@ -3562,7 +3562,7 @@
                         message = `Server error (${response.status}): ${response.statusText}`;
                     }
                 }
-                showDiagnostic(message, true);
+                showDiagnostic('', false);
                 throw new Error(message);
             }
 
@@ -4655,7 +4655,7 @@
         function updateSupplyChain() {
             const p = game.players.player;
             const roles = ['End Users', 'State/Local Hubs', 'Regional Hubs', 'Federal Stockpile'];
-            const emojis = ['👥', '🏛️', '🌍', '🏢'];
+            const emojis = ['👥', '🏛️', '🗺️', '🏢'];
             const roleStates = game.sharedTeamState?.roleStates || {};
             const totalCost = getSafePlayerTotalCost(p);
             const highVisibility = isHighVisibilityTeam();
@@ -4809,7 +4809,7 @@
             if (!panel) return;
 
             const roles = getSequentialRoleOrder();
-            const emojis = ['👥', '🏛️', '🌍', '🏢'];
+            const emojis = ['👥', '🏛️', '🗺️', '🏢'];
             const currentTurnRole = getActiveTeamTurnRole();
             const highVisibility = isHighVisibilityTeam();
             const roleStates = game.sharedTeamState?.roleStates || {};

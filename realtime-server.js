@@ -21,6 +21,8 @@ const teamRosters = new Map();
 const teamStates = new Map();
 const allResults = [];
 const allTrialResults = [];
+let activeStateWriteQueue = Promise.resolve();
+let resultWriteQueue = Promise.resolve();
 
 // Merges an incoming per-player team-state publish into the authoritative stored
 // state instead of blind-replacing it. This is what lets 4 players' concurrent
@@ -47,7 +49,21 @@ function mergeTeamState(teamKey, incoming) {
   };
 
   teamStates.set(teamKey, merged);
+  queueActiveStateWrite();
   return merged;
+}
+
+function requestResolver(roomKey, state, excludedPlayerId = null) {
+  const sockets = io.sockets.adapter.rooms.get(roomKey);
+  if (!sockets) return false;
+  for (const socketId of sockets) {
+    const socket = io.sockets.sockets.get(socketId);
+    if (!socket || socket.data.playerId === excludedPlayerId) continue;
+    state.resolverPlayerId = socket.data.playerId;
+    socket.emit('resolve-team-day', { roomKey, day: Number(state.currentDay || 0), resolverPlayerId: state.resolverPlayerId, state });
+    return true;
+  }
+  return false;
 }
 
 // Create server FIRST so routes can access io
@@ -298,6 +314,7 @@ const ADMIN_CONFIG_FILE = path.join(ADMIN_CONFIG_DIR, 'admin-config.json');
 const TRIAL_CONFIG_FILE = path.join(ADMIN_CONFIG_DIR, 'trial-config.json');
 const RESULTS_FILE = path.join(ADMIN_CONFIG_DIR, 'results.json');
 const TRIAL_RESULTS_FILE = path.join(ADMIN_CONFIG_DIR, 'trial-results.json');
+const ACTIVE_TEAMS_FILE = path.join(ADMIN_CONFIG_DIR, 'active-teams.json');
 let adminConfigLoadedFromDisk = false;
 
 async function readAdminConfigFromDisk() {
@@ -353,6 +370,18 @@ async function writeResultsToDisk(results) {
   const tempFile = `${RESULTS_FILE}.tmp`;
   await fs.writeFile(tempFile, JSON.stringify(results, null, 2), 'utf8');
   await fs.rename(tempFile, RESULTS_FILE);
+}
+
+function queueActiveStateWrite() {
+  activeStateWriteQueue = activeStateWriteQueue.then(async () => {
+    await fs.mkdir(ADMIN_CONFIG_DIR, { recursive: true });
+    const snapshot = {
+      teamStates: Array.from(teamStates.entries()),
+      teamRosters: Array.from(teamRosters.entries()),
+      rooms: Array.from(rooms.entries())
+    };
+    await fs.writeFile(ACTIVE_TEAMS_FILE, JSON.stringify(snapshot), 'utf8');
+  }).catch(err => console.warn('Failed to persist active teams:', err.message));
 }
 
 async function loadTrialResultsFromDisk() {
