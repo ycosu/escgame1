@@ -20,6 +20,7 @@ app.use(express.json());
 const teamRosters = new Map();
 const teamStates = new Map();
 const allResults = [];
+const allTrialResults = [];
 
 // Merges an incoming per-player team-state publish into the authoritative stored
 // state instead of blind-replacing it. This is what lets 4 players' concurrent
@@ -332,6 +333,23 @@ app.get('/api/results', (req, res) => {
 
 // API endpoint to save a result
 app.post('/api/results', async (req, res) => {
+
+  app.get('/api/trial-results', (_req, res) => {
+    res.json({ results: allTrialResults });
+  });
+
+  app.post('/api/trial-results', async (req, res) => {
+    const result = req.body;
+    if (!result) return res.status(400).json({ error: 'Missing trial result data' });
+    allTrialResults.push({ ...result, isTrial: true });
+    try {
+      await writeTrialResultsToDisk(allTrialResults);
+    } catch (err) {
+      allTrialResults.pop();
+      return res.status(500).json({ error: 'Failed to persist trial result data' });
+    }
+    res.json({ success: true, totalResults: allTrialResults.length });
+  });
   const result = req.body;
   
   if (!result) {
@@ -440,6 +458,7 @@ const ADMIN_CONFIG_DIR = path.join(__dirname, '.persist');
 const ADMIN_CONFIG_FILE = path.join(ADMIN_CONFIG_DIR, 'admin-config.json');
 const TRIAL_CONFIG_FILE = path.join(ADMIN_CONFIG_DIR, 'trial-config.json');
 const RESULTS_FILE = path.join(ADMIN_CONFIG_DIR, 'results.json');
+const TRIAL_RESULTS_FILE = path.join(ADMIN_CONFIG_DIR, 'trial-results.json');
 let adminConfigLoadedFromDisk = false;
 
 async function readAdminConfigFromDisk() {
@@ -491,6 +510,20 @@ async function loadResultsFromDisk() {
 }
 
 async function writeResultsToDisk(results) {
+
+  async function loadTrialResultsFromDisk() {
+    try {
+      const stored = JSON.parse(await fs.readFile(TRIAL_RESULTS_FILE, 'utf8'));
+      if (Array.isArray(stored)) allTrialResults.push(...stored);
+    } catch (err) {
+      if (err.code !== 'ENOENT') console.warn('Failed to load trial results from disk:', err.message);
+    }
+  }
+
+  async function writeTrialResultsToDisk(results) {
+    await fs.mkdir(ADMIN_CONFIG_DIR, { recursive: true });
+    await fs.writeFile(TRIAL_RESULTS_FILE, JSON.stringify(results, null, 2), 'utf8');
+  }
   await fs.mkdir(ADMIN_CONFIG_DIR, { recursive: true });
   const tempFile = `${RESULTS_FILE}.tmp`;
   await fs.writeFile(tempFile, JSON.stringify(results, null, 2), 'utf8');
@@ -824,6 +857,7 @@ initRedis()
       const config = await getGlobalAdminConfig();
       console.log(`Admin config preload: ${config ? 'found persisted config' : 'no persisted config yet'}`);
       await loadResultsFromDisk();
+      await loadTrialResultsFromDisk();
       console.log(`Results preload: ${allResults.length} persisted record(s)`);
     } catch (err) {
       console.warn('Initial admin config preload failed:', err.message);

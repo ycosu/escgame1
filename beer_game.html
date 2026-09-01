@@ -2825,6 +2825,24 @@
             return q;
         }
 
+        function scheduleQueue(queue, currentDay) {
+            return (Array.isArray(queue) ? queue : []).map((entry, index) => (
+                entry && typeof entry === 'object'
+                    ? entry
+                    : { quantity: Number(entry || 0), dueDay: currentDay + index }
+            ));
+        }
+
+        function receiveScheduled(queue, currentDay) {
+            let received = 0;
+            const remaining = [];
+            queue.forEach(entry => {
+                if (Number(entry.dueDay) <= currentDay) received += Number(entry.quantity || 0);
+                else remaining.push(entry);
+            });
+            return { received, remaining };
+        }
+
         function createInitialRoleState(role, initialInventory, lagTime) {
             // Start with empty pipelines so Round 1 has no in-transit inventory.
             return {
@@ -2875,9 +2893,10 @@
                 }
 
                 const state = game.sharedTeamState.roleStates[role];
-                state.incomingOrders = normalizeQueue(state.incomingOrders, lagTime, 0);
-                state.incomingShipments = normalizeQueue(state.incomingShipments, lagTime, 0);
-                state.factoryOrders = normalizeQueue(state.factoryOrders, lagTime, 0);
+                const currentDay = Math.max(1, Number(game.currentDay || 1));
+                state.incomingOrders = scheduleQueue(state.incomingOrders, currentDay);
+                state.incomingShipments = scheduleQueue(state.incomingShipments, currentDay);
+                state.factoryOrders = scheduleQueue(state.factoryOrders, currentDay);
                 state.inventory = Math.max(0, Number(state.inventory || 0));
                 state.backorders = Math.max(0, Number(state.backorders || 0));
                 state.order = Math.max(0, Number(state.order || 0));
@@ -4902,15 +4921,17 @@
 
             roles.forEach((role) => {
                 const state = roleStates[role] || createInitialRoleState(role, game.adminConfig?.initialInventory ?? 0, lagTime);
-                state.incomingOrders = normalizeQueue(state.incomingOrders, lagTime, 0);
-                state.incomingShipments = normalizeQueue(state.incomingShipments, lagTime, 0);
-                state.factoryOrders = normalizeQueue(state.factoryOrders, lagTime, 0);
+                const today = getCurrentGameDay();
+                const shipments = receiveScheduled(scheduleQueue(state.incomingShipments, today), today);
+                const factory = receiveScheduled(scheduleQueue(state.factoryOrders, today), today);
+                const orders = receiveScheduled(scheduleQueue(state.incomingOrders, today), today);
+                state.incomingShipments = shipments.remaining;
+                state.factoryOrders = factory.remaining;
+                state.incomingOrders = orders.remaining;
 
-                const arrivedToday = Number(state.incomingShipments.shift() || 0);
-                const factoryOrderReceived = role === 'Federal Stockpile'
-                    ? Number(state.factoryOrders.shift() || 0)
-                    : 0;
-                const startingInventory = Math.max(0, Number(state.inventory || 0)) + arrivedToday;
+                const arrivedToday = shipments.received;
+                const factoryOrderReceived = role === 'Federal Stockpile' ? factory.received : 0;
+                const startingInventory = Math.max(0, Number(state.inventory || 0)) + arrivedToday + factoryOrderReceived;
                 const startingBacklog = Math.max(0, Number(state.backorders || 0));
                 const orderPlaced = Math.max(0, Number(state.pendingOrder ?? state.order ?? 0));
                 // Classic Beer Game demand flow:
@@ -4919,7 +4940,7 @@
                 // which arrives through the order lag queue (incomingOrders).
                 const incomingOrder = (role === 'End Users')
                     ? getExternalDemand(getCurrentGameDay())
-                    : Math.max(0, Number(state.incomingOrders.shift() || 0));
+                    : Math.max(0, Number(orders.received || 0));
                 const totalDemand = incomingOrder + startingBacklog;
                 const shipped = Math.min(startingInventory, totalDemand);
                 const endingInventory = Math.max(0, startingInventory - shipped);
@@ -4959,20 +4980,16 @@
                 const downstreamRole = getDownstreamRole(role);
                 if (downstreamRole && roleStates[downstreamRole]) {
                     const downstreamState = roleStates[downstreamRole];
-                    downstreamState.incomingShipments.push(update.shipped);
+                    downstreamState.incomingShipments.push({ quantity: update.shipped, dueDay: getCurrentGameDay() + lagTime });
                 }
 
                 const upstreamRole = getUpstreamRole(role);
                 if (upstreamRole && roleStates[upstreamRole]) {
                     const upstreamState = roleStates[upstreamRole];
-                    upstreamState.incomingOrders.push(update.orderPlaced);
+                    upstreamState.incomingOrders.push({ quantity: update.orderPlaced, dueDay: getCurrentGameDay() + lagTime });
                 } else {
                     // The factory receives the Stockpile's order before producing a shipment.
-                    state.factoryOrders.push(update.orderPlaced);
-                }
-
-                if (role === 'Federal Stockpile' && update.factoryOrderReceived > 0) {
-                    state.incomingShipments.push(update.factoryOrderReceived);
+                    state.factoryOrders.push({ quantity: update.orderPlaced, dueDay: getCurrentGameDay() + lagTime });
                 }
 
                 const inventoryPenalty = state.inventory * rates.inventoryPenalty;
@@ -5312,6 +5329,19 @@
                     const storedTrial = getStoredTrialResults();
                     results.forEach(record => storedTrial.push({ ...record, isTrial: true }));
                     saveStoredTrialResults(storedTrial);
+                    results.forEach(record => postTrialResultToServer(record));
+
+                        async function postTrialResultToServer(resultRecord) {
+                            try {
+                                const base = (typeof getSocketUrl === 'function' ? (getSocketUrl() || '') : '');
+                                await fetch(`${base.replace(/\/$/, '')}/api/trial-results`, {
+                                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ ...resultRecord, isTrial: true })
+                                });
+                            } catch (err) {
+                                console.warn('Failed to post trial result to server:', err);
+                            }
+                        }
                 } else {
                     const stored = getStoredResults();
                     results.forEach(record => stored.push(record));
