@@ -208,7 +208,7 @@ app.post('/api/admin/trial-config', async (req, res) => {
   const config = req.body;
   if (!config) return res.status(400).json({ error: 'Missing trial config data' });
 
-  const safeConfig = { ...config, shocks: [], shockScheduleText: '' };
+  const safeConfig = { ...config, totalDays: 5, shocks: [], shockScheduleText: '' };
   try {
     await writeTrialConfigToDisk(safeConfig);
     globalTrialConfig = safeConfig;
