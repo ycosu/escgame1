@@ -33,11 +33,13 @@ function mergeTeamState(teamKey, incoming) {
   const existing = teamStates.get(teamKey) || {};
   const prevDay = Number(existing.currentDay ?? 0);
   const newDay = Number(incoming.currentDay ?? prevDay);
+  if (prevDay > 0 && newDay < prevDay) return existing;
   const dayAdvanced = newDay > prevDay;
 
   const merged = {
     ...existing,
     ...incoming,
+    gameConfig: existing.gameConfig || incoming.gameConfig,
     roleStates: { ...(existing.roleStates || {}), ...(incoming.roleStates || {}) },
     dayOrders: dayAdvanced
       ? (incoming.dayOrders || {})
@@ -118,6 +120,48 @@ function resolveTeamDay(state) {
   if (day < Number(state.totalDays || 20)) state.currentDay = day + 1;
   else state.completed = true;
   return state;
+}
+
+async function persistCompletedTeamResults(state) {
+  if (!state.completed || state.serverResultsSaved) return;
+  const config = state.gameConfig || globalAdminConfig || {};
+  const rosterByRole = new Map((teamRosters.get(state.roomKey) || []).map(member => [member.role, member]));
+  const target = state.isTrial ? allTrialResults : allResults;
+  const records = ROLES.map((role, index) => {
+    const roleState = state.roleStates?.[role] || {};
+    const member = rosterByRole.get(role) || {};
+    const inventoryCost = Number(roleState.inventoryCostTotal || 0);
+    const backorderCost = Number(roleState.backlogCostTotal || 0);
+    return {
+      rank: index + 1,
+      timestamp: state.completedAt,
+      participantId: member.playerId || `${state.roomKey}_${role.replace(/\s+/g, '_')}`,
+      name: member.name || `${state.teamName || state.roomKey} - ${role}`,
+      role,
+      teamNumber: state.roomKey?.replace(/^TRIAL/, '').split('_')[0] || '',
+      treatmentGroup: state.roomKey?.split('_')[1] || '',
+      totalDays: state.totalDays,
+      inventoryCost: Number(inventoryCost.toFixed(2)),
+      backorderCost: Number(backorderCost.toFixed(2)),
+      totalCost: Number(Number(roleState.totalCost || (inventoryCost + backorderCost)).toFixed(2)),
+      inventoryPenaltyRate: Number(config.inventoryPenaltyRate || 0),
+      backlogPenaltyRate: Number(config.backlogPenaltyRate || 0),
+      teamBacklogPenaltyRate: Number(config.teamBacklogPenaltyRate || 0),
+      lagTime: config.lagTime,
+      shockScheduleText: state.isTrial ? '' : (config.shockScheduleText || ''),
+      endowment: Number(config.endowment || 0),
+      isTrial: !!state.isTrial,
+      history: Array.isArray(roleState.history) ? roleState.history : []
+    };
+  });
+  target.push(...records);
+  try {
+    await (state.isTrial ? writeTrialResultsToDisk(target) : writeResultsToDisk(target));
+    state.serverResultsSaved = true;
+  } catch (err) {
+    target.splice(target.length - records.length, records.length);
+    throw err;
+  }
 }
 
 // Create server FIRST so routes can access io
@@ -202,7 +246,7 @@ app.get('/api/team/:teamNum/:teamLetter/state', (req, res) => {
 });
 
 // API endpoint to record player submission for current round
-app.post('/api/team/:teamNum/:teamLetter/submit', (req, res) => {
+app.post('/api/team/:teamNum/:teamLetter/submit', async (req, res) => {
   const { teamNum, teamLetter } = req.params;
   const { role, order, playerId } = req.body;
   
@@ -230,7 +274,18 @@ app.post('/api/team/:teamNum/:teamLetter/submit', (req, res) => {
   const currentDay = Number(state.currentDay || 0);
   const allSubmitted = requiredRoles.every(requiredRole => state.dayOrders[requiredRole] !== undefined && state.dayOrders[requiredRole] !== null);
   const shouldResolve = allSubmitted && state.lastResolvedDay !== currentDay;
-  if (shouldResolve) resolveTeamDay(state);
+  if (shouldResolve) {
+    resolveTeamDay(state);
+    if (state.completed) {
+      state.completedAt = new Date().toISOString();
+      try {
+        await persistCompletedTeamResults(state);
+      } catch (err) {
+        console.error('Failed to persist completed team results:', err);
+        return res.status(500).json({ error: 'Failed to persist completed team results' });
+      }
+    }
+  }
 
   teamStates.set(teamKey, state);
   queueActiveStateWrite();

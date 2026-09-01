@@ -5326,9 +5326,9 @@
 
             const currentPlayerResult = results.find(r => r.role === p.role) || results[0];
             const completedByPlayerId = game.sharedTeamState?.completedByPlayerId;
-            const shouldPersistAllLogs = completedByPlayerId
+            const shouldPersistAllLogs = !game.sharedTeamState?.serverResultsSaved && (completedByPlayerId
                 ? completedByPlayerId === game.participantId
-                : p.role === 'Federal Stockpile';
+                : p.role === 'Federal Stockpile');
 
             if (shouldPersistAllLogs) {
                 if (game.isTrial) {
