@@ -21,6 +21,8 @@ const teamRosters = new Map();
 const teamStates = new Map();
 const allResults = [];
 const allTrialResults = [];
+let activeStateWriteQueue = Promise.resolve();
+let resultWriteQueue = Promise.resolve();
 
 // Merges an incoming per-player team-state publish into the authoritative stored
 // state instead of blind-replacing it. This is what lets 4 players' concurrent
@@ -47,7 +49,21 @@ function mergeTeamState(teamKey, incoming) {
   };
 
   teamStates.set(teamKey, merged);
+  queueActiveStateWrite();
   return merged;
+}
+
+function requestResolver(roomKey, state, excludedPlayerId = null) {
+  const sockets = io.sockets.adapter.rooms.get(roomKey);
+  if (!sockets) return false;
+  for (const socketId of sockets) {
+    const socket = io.sockets.sockets.get(socketId);
+    if (!socket || socket.data.playerId === excludedPlayerId) continue;
+    state.resolverPlayerId = socket.data.playerId;
+    socket.emit('resolve-team-day', { roomKey, day: Number(state.currentDay || 0), resolverPlayerId: state.resolverPlayerId, state });
+    return true;
+  }
+  return false;
 }
 
 // Create server FIRST so routes can access io
@@ -163,6 +179,7 @@ app.post('/api/team/:teamNum/:teamLetter/submit', (req, res) => {
   if (shouldResolve) state.resolvingDay = currentDay;
 
   teamStates.set(teamKey, state);
+  queueActiveStateWrite();
   console.log(`✅ Team ${teamKey} - ${role} submitted order: ${order}.`);
   res.json({ success: true, submittedRoles: Object.keys(state.roleSubmissions || {}) });
   
@@ -178,12 +195,13 @@ app.post('/api/team/:teamNum/:teamLetter/submit', (req, res) => {
   io.to(teamKey).emit(`room-node:${teamKey}:teamState`, state);
 
   if (shouldResolve) {
-    io.to(teamKey).emit('resolve-team-day', {
-      roomKey: teamKey,
-      day: currentDay,
-      resolverPlayerId: playerId,
-      state
-    });
+    requestResolver(teamKey, state);
+    setTimeout(() => {
+      const current = teamStates.get(teamKey);
+      if (current && current.lastResolvedDay !== currentDay && current.resolvingDay === currentDay) {
+        requestResolver(teamKey, current, current.resolverPlayerId);
+      }
+    }, 3000);
   }
 });
 
@@ -470,6 +488,7 @@ const ADMIN_CONFIG_FILE = path.join(ADMIN_CONFIG_DIR, 'admin-config.json');
 const TRIAL_CONFIG_FILE = path.join(ADMIN_CONFIG_DIR, 'trial-config.json');
 const RESULTS_FILE = path.join(ADMIN_CONFIG_DIR, 'results.json');
 const TRIAL_RESULTS_FILE = path.join(ADMIN_CONFIG_DIR, 'trial-results.json');
+const ACTIVE_TEAMS_FILE = path.join(ADMIN_CONFIG_DIR, 'active-teams.json');
 let adminConfigLoadedFromDisk = false;
 
 async function readAdminConfigFromDisk() {
@@ -521,10 +540,40 @@ async function loadResultsFromDisk() {
 }
 
 async function writeResultsToDisk(results) {
-  await fs.mkdir(ADMIN_CONFIG_DIR, { recursive: true });
-  const tempFile = `${RESULTS_FILE}.tmp`;
-  await fs.writeFile(tempFile, JSON.stringify(results, null, 2), 'utf8');
-  await fs.rename(tempFile, RESULTS_FILE);
+  return queueResultsWrite(RESULTS_FILE, results);
+}
+
+function queueResultsWrite(filePath, results) {
+  resultWriteQueue = resultWriteQueue.then(async () => {
+    await fs.mkdir(ADMIN_CONFIG_DIR, { recursive: true });
+    const tempFile = `${filePath}.${Date.now()}.tmp`;
+    await fs.writeFile(tempFile, JSON.stringify(results, null, 2), 'utf8');
+    await fs.rename(tempFile, filePath);
+  });
+  return resultWriteQueue;
+}
+
+function queueActiveStateWrite() {
+  activeStateWriteQueue = activeStateWriteQueue.then(async () => {
+    await fs.mkdir(ADMIN_CONFIG_DIR, { recursive: true });
+    const snapshot = {
+      teamStates: Array.from(teamStates.entries()),
+      teamRosters: Array.from(teamRosters.entries()),
+      rooms: Array.from(rooms.entries())
+    };
+    await fs.writeFile(ACTIVE_TEAMS_FILE, JSON.stringify(snapshot), 'utf8');
+  }).catch(err => console.warn('Failed to persist active teams:', err.message));
+}
+
+async function loadActiveStateFromDisk() {
+  try {
+    const snapshot = JSON.parse(await fs.readFile(ACTIVE_TEAMS_FILE, 'utf8'));
+    if (Array.isArray(snapshot.teamStates)) snapshot.teamStates.forEach(([key, value]) => teamStates.set(key, value));
+    if (Array.isArray(snapshot.teamRosters)) snapshot.teamRosters.forEach(([key, value]) => teamRosters.set(key, value));
+    if (Array.isArray(snapshot.rooms)) snapshot.rooms.forEach(([key, value]) => rooms.set(key, value));
+  } catch (err) {
+    if (err.code !== 'ENOENT') console.warn('Failed to load active teams:', err.message);
+  }
 }
 
 async function loadTrialResultsFromDisk() {
@@ -537,8 +586,7 @@ async function loadTrialResultsFromDisk() {
 }
 
 async function writeTrialResultsToDisk(results) {
-  await fs.mkdir(ADMIN_CONFIG_DIR, { recursive: true });
-  await fs.writeFile(TRIAL_RESULTS_FILE, JSON.stringify(results, null, 2), 'utf8');
+  return queueResultsWrite(TRIAL_RESULTS_FILE, results);
 }
 
 // Round-trips a small test file through the .persist mount so admins can verify
@@ -649,6 +697,7 @@ async function initRedis() {
 async function setRoomNode(roomKey, nodeName, payload) {
   const roomState = getRoomState(roomKey);
   roomState[nodeName] = payload;
+  queueActiveStateWrite();
 
   if (!redisState) return;
   await redisState.hset(getRoomRedisKey(roomKey), nodeName, JSON.stringify(payload));
@@ -675,6 +724,7 @@ async function setTeamRoster(roomKey, members) {
   const nextMembers = Array.isArray(members) ? members.map(member => ({ ...member })) : [];
   roster.length = 0;
   roster.push(...nextMembers);
+  queueActiveStateWrite();
 
   if (!redisState) return;
   await redisState.set(getTeamRosterRedisKey(roomKey), JSON.stringify(nextMembers));
@@ -802,7 +852,7 @@ io.on('connection', (socket) => {
 
       if (allSubmitted && outgoing.lastResolvedDay !== currentDay && outgoing.resolvingDay !== currentDay) {
         outgoing.resolvingDay = currentDay;
-        socket.emit('resolve-team-day', { roomKey, day: currentDay });
+        requestResolver(roomKey, outgoing);
       }
     }
 
@@ -869,6 +919,7 @@ initRedis()
       console.log(`Admin config preload: ${config ? 'found persisted config' : 'no persisted config yet'}`);
       await loadResultsFromDisk();
       await loadTrialResultsFromDisk();
+      await loadActiveStateFromDisk();
       console.log(`Results preload: ${allResults.length} persisted record(s)`);
     } catch (err) {
       console.warn('Initial admin config preload failed:', err.message);
