@@ -189,7 +189,7 @@ app.get('/api/results', (req, res) => {
 });
 
 // API endpoint to save a result
-app.post('/api/results', (req, res) => {
+app.post('/api/results', async (req, res) => {
   const result = req.body;
   
   if (!result) {
@@ -197,6 +197,13 @@ app.post('/api/results', (req, res) => {
   }
   
   allResults.push(result);
+  try {
+    await writeResultsToDisk(allResults);
+  } catch (err) {
+    allResults.pop();
+    console.error('Failed to persist result to disk:', err);
+    return res.status(500).json({ error: 'Failed to persist result data' });
+  }
   console.log(`✅ Saved result for ${result.role} in Team ${result.teamNumber}-${result.treatmentGroup}: Total Cost $${result.totalCost}`);
   res.json({ success: true, result, totalResults: allResults.length });
   
@@ -236,6 +243,7 @@ const TEAM_ROSTER_PREFIX = 'dsc:roster:';
 const GLOBAL_KEY = 'dsc:global:adminConfig';
 const ADMIN_CONFIG_DIR = path.join(__dirname, '.persist');
 const ADMIN_CONFIG_FILE = path.join(ADMIN_CONFIG_DIR, 'admin-config.json');
+const RESULTS_FILE = path.join(ADMIN_CONFIG_DIR, 'results.json');
 let adminConfigLoadedFromDisk = false;
 
 async function readAdminConfigFromDisk() {
@@ -259,6 +267,23 @@ async function writeAdminConfigToDisk(config) {
   } catch (err) {
     console.warn('Failed to persist admin config to disk:', err.message);
   }
+}
+
+async function loadResultsFromDisk() {
+  try {
+    const raw = await fs.readFile(RESULTS_FILE, 'utf8');
+    const stored = JSON.parse(raw);
+    if (Array.isArray(stored)) allResults.push(...stored);
+  } catch (err) {
+    if (err.code !== 'ENOENT') console.warn('Failed to load results from disk:', err.message);
+  }
+}
+
+async function writeResultsToDisk(results) {
+  await fs.mkdir(ADMIN_CONFIG_DIR, { recursive: true });
+  const tempFile = `${RESULTS_FILE}.tmp`;
+  await fs.writeFile(tempFile, JSON.stringify(results, null, 2), 'utf8');
+  await fs.rename(tempFile, RESULTS_FILE);
 }
 
 function getRoomState(roomKey) {
@@ -570,6 +595,8 @@ initRedis()
   .then(async () => {
     try {
       await getGlobalAdminConfig();
+      await loadResultsFromDisk();
+      console.log(`Results preload: ${allResults.length} persisted record(s)`);
     } catch (err) {
       console.warn('Initial admin config preload failed:', err.message);
     }
