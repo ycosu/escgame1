@@ -3936,8 +3936,8 @@
             alert('Trial controls saved. New trials will use these settings. The trial never has disruptions.');
         }
 
-        function refreshTrialAdminResults() {
-            const results = getStoredTrialResults();
+        async function refreshTrialAdminResults() {
+            const results = await syncServerTrialResultsToLocal();
             const tbody = document.getElementById('trialAdminResultsBody');
             if (!tbody) return;
 
@@ -3958,10 +3958,17 @@
             `).join('');
         }
 
-        function clearTrialResults() {
-            if (!confirm('Delete all locally stored trial results?')) return;
+        async function clearTrialResults() {
+            if (!confirm('Delete all stored trial results?')) return;
+            try {
+                const base = (typeof getSocketUrl === 'function' ? (getSocketUrl() || '') : '');
+                await fetch(`${base.replace(/\/$/, '')}/api/admin/clear-trial-results`, { method: 'POST' });
+            } catch (err) {
+                alert('Could not clear trial results on the server.');
+                return;
+            }
             saveStoredTrialResults([]);
-            refreshTrialAdminResults();
+            await refreshTrialAdminResults();
         }
 
         function seededRandom(seed) {
@@ -3972,9 +3979,8 @@
             };
         }
 
-        function downloadTrialResultsCSV() {
-            // Trial data lives only in this browser's local storage (never posted to the server).
-            const results = getStoredTrialResults();
+        async function downloadTrialResultsCSV() {
+            const results = await syncServerTrialResultsToLocal();
             if (results.length === 0) {
                 alert('No trial results available to download.');
                 return;
@@ -5253,6 +5259,19 @@
             }
         }
 
+        async function fetchServerTrialResults() {
+            try {
+                const base = (typeof getSocketUrl === 'function' ? (getSocketUrl() || '') : '');
+                const response = await fetch(`${base.replace(/\/$/, '')}/api/trial-results?t=${Date.now()}`, { cache: 'no-store' });
+                if (!response.ok) return [];
+                const data = await response.json();
+                return Array.isArray(data?.results) ? data.results : [];
+            } catch (err) {
+                console.warn('Failed to fetch trial results:', err);
+                return [];
+            }
+        }
+
         // Pull every participant's result from the server and merge any new ones into
         // the local store (deduped by participantId + timestamp), so the admin can
         // download all players' data from a single browser.
@@ -5272,6 +5291,18 @@
             });
             if (added) saveStoredResults(local);
             return local;
+        }
+
+        async function syncServerTrialResultsToLocal() {
+            const serverResults = await fetchServerTrialResults();
+            const local = getStoredTrialResults();
+            const byKey = new Map(local.map(record => [`${record.participantId}|${record.timestamp}`, record]));
+            serverResults.forEach(record => {
+                byKey.set(`${record.participantId}|${record.timestamp}`, record);
+            });
+            const merged = Array.from(byKey.values());
+            if (merged.length !== local.length || serverResults.length) saveStoredTrialResults(merged);
+            return merged;
         }
 
         function endGame() {
