@@ -4919,8 +4919,8 @@
                     state.factoryOrders.push(update.orderPlaced);
                 }
 
-                if (role === 'Federal Stockpile' && factoryOrderReceived > 0) {
-                    state.incomingShipments.push(factoryOrderReceived);
+                if (role === 'Federal Stockpile' && update.factoryOrderReceived > 0) {
+                    state.incomingShipments.push(update.factoryOrderReceived);
                 }
 
                 const inventoryPenalty = state.inventory * rates.inventoryPenalty;
