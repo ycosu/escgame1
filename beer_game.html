@@ -1463,10 +1463,16 @@
         }
 
         .record-sheet-modal {
-            max-width: 560px;
-            max-height: 85vh;
-            overflow: auto;
+            max-width: 900px;
+            width: min(94vw, 900px);
+            padding: 28px;
             text-align: left;
+        }
+
+        .record-sheet-modal .results-table th,
+        .record-sheet-modal .results-table td {
+            padding: 9px 10px;
+            white-space: nowrap;
         }
 
         .record-sheet-modal h2 {
@@ -2123,8 +2129,6 @@
                                 <th>Shipped</th>
                                 <th>Inventory</th>
                                 <th>Backlog</th>
-                                <th>Day Cost</th>
-                                <th>Total Cost</th>
                             </tr>
                         </thead>
                         <tbody id="recordSheetBody"></tbody>
@@ -5361,7 +5365,7 @@
                 : '';
 
             if (!p) {
-                body.innerHTML = '<tr><td colspan="9" style="text-align:center;">No personal record available.</td></tr>';
+                body.innerHTML = '<tr><td colspan="7" style="text-align:center;">No personal record available.</td></tr>';
                 return;
             }
 
@@ -5369,9 +5373,6 @@
             const history = Array.isArray(state?.history) ? state.history : [];
             body.innerHTML = history.length
                 ? history.map((entry, index) => {
-                    const totalCost = history
-                        .slice(0, index + 1)
-                        .reduce((sum, prior) => sum + Number(prior.roundCost || 0), 0);
                     return `<tr>
                         <td>${entry.day}</td>
                         <td>${entry.demand ?? '-'}</td>
@@ -5380,11 +5381,9 @@
                         <td>${entry.shipped ?? '-'}</td>
                         <td>${entry.inventory ?? '-'}</td>
                         <td>${entry.backorders ?? '-'}</td>
-                        <td>$${Number(entry.roundCost || 0).toFixed(2)}</td>
-                        <td>$${totalCost.toFixed(2)}</td>
                     </tr>`;
                 }).join('')
-                : '<tr><td colspan="9" style="text-align:center;">No completed days yet.</td></tr>';
+                : '<tr><td colspan="7" style="text-align:center;">No completed days yet.</td></tr>';
         }
 
         function viewFullHistory() {
