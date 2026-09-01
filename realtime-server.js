@@ -143,16 +143,25 @@ app.post('/api/team/:teamNum/:teamLetter/submit', (req, res) => {
   let state = teamStates.get(teamKey) || { roleSubmissions: {}, currentRound: 0 };
   
   if (!state.roleSubmissions) state.roleSubmissions = {};
+  if (!state.dayOrders) state.dayOrders = {};
+
+  const parsedOrder = parseInt(order, 10);
   
   state.roleSubmissions[role] = {
     playerId,
-    order: parseInt(order, 10),
+    order: parsedOrder,
     submittedAt: new Date().toISOString()
   };
-  
-  teamStates.set(teamKey, state);
+  state.dayOrders[role] = parsedOrder;
   state.lastSubmittedRole = role;
   state.lastSubmittedAt = new Date().toISOString();
+  const requiredRoles = ['End Users', 'State/Local Hubs', 'Regional Hubs', 'Federal Stockpile'];
+  const currentDay = Number(state.currentDay || 0);
+  const allSubmitted = requiredRoles.every(requiredRole => state.dayOrders[requiredRole] !== undefined && state.dayOrders[requiredRole] !== null);
+  const shouldResolve = allSubmitted && state.lastResolvedDay !== currentDay && state.resolvingDay !== currentDay;
+  if (shouldResolve) state.resolvingDay = currentDay;
+
+  teamStates.set(teamKey, state);
   console.log(`✅ Team ${teamKey} - ${role} submitted order: ${order}.`);
   res.json({ success: true, submittedRoles: Object.keys(state.roleSubmissions || {}) });
   
@@ -165,6 +174,16 @@ app.post('/api/team/:teamNum/:teamLetter/submit', (req, res) => {
   };
   io.to(teamKey).emit('team-submission-update', submissionPayload);
   io.to(`team_${teamNum}_${teamLetter}`).emit('team-submission-update', submissionPayload);
+  io.to(teamKey).emit(`room-node:${teamKey}:teamState`, state);
+
+  if (shouldResolve) {
+    io.to(teamKey).emit('resolve-team-day', {
+      roomKey: teamKey,
+      day: currentDay,
+      resolverPlayerId: playerId,
+      state
+    });
+  }
 });
 
 // API endpoint to get current submission status

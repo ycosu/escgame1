@@ -3072,7 +3072,13 @@
 
             const resolveHandler = async (data) => {
                 if (!data || data.roomKey !== game.roomKey || Number(data.day) !== Number(game.currentDay)) return;
-                await syncTeamStateFromServer();
+                if (data.resolverPlayerId && data.resolverPlayerId !== game.participantId) return;
+                if (data.state && typeof data.state === 'object') {
+                    game.sharedTeamState = data.state;
+                    syncCurrentPlayerFromSharedState();
+                } else {
+                    await syncTeamStateFromServer();
+                }
                 resolveCompletedDay();
             };
 
