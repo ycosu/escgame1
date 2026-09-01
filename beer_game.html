@@ -2548,6 +2548,7 @@
         }
 
         function getActiveShocks(dayNumber) {
+            if (game.isTrial) return [];
             const cfg = game.adminConfig || getAdminConfig();
             const shocks = Array.isArray(cfg.shocks) ? cfg.shocks : [];
             return shocks.filter(s => dayNumber === s.round);
@@ -3340,7 +3341,7 @@
                 if (serverCfg && typeof serverCfg === 'object') {
                     const latestCfg = chooseLatestAdminConfig(localCfg, serverCfg);
                     saveAdminConfigToStorage(latestCfg);
-                    game.adminConfig = getAdminConfig();
+                    if (!game.gameStarted || !game.isTrial) game.adminConfig = getAdminConfig();
                     if (getAdminConfigTimestamp(localCfg) > getAdminConfigTimestamp(serverCfg)) {
                         await fetch(`${cleanBase}/api/admin/config`, {
                             method: 'POST',
@@ -3482,7 +3483,7 @@
                 const localCfg = getAdminConfig();
                 const latestCfg = chooseLatestAdminConfig(localCfg, cfg);
                 saveAdminConfigToStorage(latestCfg);
-                game.adminConfig = getAdminConfig();
+                if (!game.gameStarted || !game.isTrial) game.adminConfig = getAdminConfig();
 
                 const totalDaysInput = document.getElementById('adminTotalDays');
                 const lagInput = document.getElementById('adminLagTime');
@@ -4998,7 +4999,7 @@
                 return;
             }
 
-            game.adminConfig = getAdminConfig();
+            if (!game.isTrial) game.adminConfig = getAdminConfig();
             const shared = ensureSharedTeamStateInitialized();
             const role = p.role;
             const roleState = shared.roleStates[role];
