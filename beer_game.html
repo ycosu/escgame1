@@ -2103,9 +2103,8 @@
                 <div class="results-container" style="text-align:center;">
                     <h2>🧪 Trial Complete!</h2>
                     <p style="font-size:1.1rem;color:#555;">You've finished the practice trial.</p>
-                    <p style="font-size:1.1rem;color:#555;">Returning to the home screen so you can start the real game…</p>
                     <div class="button-row" style="justify-content:center;margin-top:20px;">
-                        <button class="btn btn-primary" onclick="resetGame()">Return to Home →</button>
+                        <button class="btn btn-primary" onclick="resetGame()">Close</button>
                     </div>
                 </div>
             </div>
@@ -5069,11 +5068,8 @@
             resolveDayAfterAllOrders(shared, lagTime);
             shared.lastResolvedDay = Number(game.currentDay);
 
-            if (game.currentDay >= game.totalDays) {
-                game.currentDay = game.totalDays;
-            } else {
-                game.currentDay += 1;
-            }
+            const completedFinalDay = game.currentDay >= game.totalDays;
+            if (!completedFinalDay) game.currentDay += 1;
 
             shared.currentDay = game.currentDay;
             shared.totalDays = game.totalDays;
@@ -5090,7 +5086,7 @@
             publishTeamState();
             updateGameDisplay();
 
-            if (game.currentDay >= game.totalDays) {
+            if (completedFinalDay) {
                 endGame();
             }
         }
@@ -5272,10 +5268,8 @@
             }
 
             if (game.isTrial) {
-                // Skip the results podium for the trial; show a completion message, then
-                // automatically return to the home screen so players can start the real game.
+                // Skip the results podium for the trial and wait for the player to close it.
                 showScreen('trialCompleteScreen');
-                setTimeout(() => resetGame(), 3000);
                 return;
             }
 
