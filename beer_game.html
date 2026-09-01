@@ -2117,7 +2117,14 @@
                         <thead>
                             <tr>
                                 <th>Day</th>
-                                <th>Your order</th>
+                                <th>Demand</th>
+                                <th>Order</th>
+                                <th>Arrived</th>
+                                <th>Shipped</th>
+                                <th>Inventory</th>
+                                <th>Backlog</th>
+                                <th>Day Cost</th>
+                                <th>Total Cost</th>
                             </tr>
                         </thead>
                         <tbody id="recordSheetBody"></tbody>
@@ -5359,15 +5366,30 @@
                 : '';
 
             if (!p) {
-                body.innerHTML = '<tr><td colspan="2" style="text-align:center;">No personal record available.</td></tr>';
+                body.innerHTML = '<tr><td colspan="9" style="text-align:center;">No personal record available.</td></tr>';
                 return;
             }
 
             const state = game.sharedTeamState?.roleStates?.[p.role];
             const history = Array.isArray(state?.history) ? state.history : [];
             body.innerHTML = history.length
-                ? history.map(entry => `<tr><td>${entry.day}</td><td>${entry.order}</td></tr>`).join('')
-                : '<tr><td colspan="2" style="text-align:center;">No orders recorded yet.</td></tr>';
+                ? history.map((entry, index) => {
+                    const totalCost = history
+                        .slice(0, index + 1)
+                        .reduce((sum, prior) => sum + Number(prior.roundCost || 0), 0);
+                    return `<tr>
+                        <td>${entry.day}</td>
+                        <td>${entry.demand ?? '-'}</td>
+                        <td>${entry.order ?? '-'}</td>
+                        <td>${entry.arrived ?? '-'}</td>
+                        <td>${entry.shipped ?? '-'}</td>
+                        <td>${entry.inventory ?? '-'}</td>
+                        <td>${entry.backorders ?? '-'}</td>
+                        <td>$${Number(entry.roundCost || 0).toFixed(2)}</td>
+                        <td>$${totalCost.toFixed(2)}</td>
+                    </tr>`;
+                }).join('')
+                : '<tr><td colspan="9" style="text-align:center;">No completed days yet.</td></tr>';
         }
 
         function viewFullHistory() {
