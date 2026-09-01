@@ -3368,28 +3368,9 @@
                 const payload = await response.json();
                 const serverCfg = payload?.config;
                 if (serverCfg && typeof serverCfg === 'object') {
-                    const latestCfg = chooseLatestAdminConfig(localCfg, serverCfg);
-                    saveAdminConfigToStorage(latestCfg);
+                    saveAdminConfigToStorage(serverCfg);
                     if (!game.gameStarted || !game.isTrial) game.adminConfig = getAdminConfig();
-                    if (getAdminConfigTimestamp(localCfg) > getAdminConfigTimestamp(serverCfg)) {
-                        await fetch(`${cleanBase}/api/admin/config`, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify(localCfg)
-                        });
-                    }
                     return game.adminConfig;
-                }
-
-                // Server has no saved config yet: seed it with local admin config.
-                await fetch(`${cleanBase}/api/admin/config`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ ...localCfg, updatedAt: new Date().toISOString() })
-                });
-
-                if (game.socketConnected && game.socket) {
-                    game.socket.emit('set-global-admin-config', localCfg);
                 }
 
                 return localCfg;
@@ -3411,11 +3392,6 @@
                     saveTrialConfigToStorage(payload.config);
                     return getTrialConfig();
                 }
-                await fetch(`${cleanBase}/api/admin/trial-config`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(localCfg)
-                });
             } catch (err) {
                 console.warn('Failed to sync trial config:', err);
             }
@@ -3532,9 +3508,7 @@
             game.socket.on('global-admin-config', (cfg) => {
                 if (!cfg || typeof cfg !== 'object') return;
 
-                const localCfg = getAdminConfig();
-                const latestCfg = chooseLatestAdminConfig(localCfg, cfg);
-                saveAdminConfigToStorage(latestCfg);
+                saveAdminConfigToStorage(cfg);
                 if (!game.gameStarted || !game.isTrial) game.adminConfig = getAdminConfig();
 
                 const totalDaysInput = document.getElementById('adminTotalDays');
@@ -3683,13 +3657,15 @@
             } catch (e) { console.error('showDiagnostic failed', e); }
         }
 
-        function unlockAdmin() {
+        async function unlockAdmin() {
             const pass = document.getElementById('adminPassword').value;
             if (pass !== ADMIN_PASSWORD) {
                 alert('Incorrect password.');
                 return;
             }
 
+            await syncGlobalAdminConfig();
+            await syncTrialAdminConfig();
             const cfg = getAdminConfig();
             document.getElementById('adminTotalDays').value = cfg.totalDays;
             document.getElementById('adminLagTime').value = cfg.lagTime;
