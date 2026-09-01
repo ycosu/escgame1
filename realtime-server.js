@@ -182,6 +182,28 @@ app.post('/api/admin/config', async (req, res) => {
   io.emit('global-admin-config', config);
 });
 
+app.get('/api/admin/trial-config', async (_req, res) => {
+  if (!globalTrialConfig) globalTrialConfig = await readTrialConfigFromDisk();
+  res.json({ config: globalTrialConfig });
+});
+
+app.post('/api/admin/trial-config', async (req, res) => {
+  const config = req.body;
+  if (!config) return res.status(400).json({ error: 'Missing trial config data' });
+
+  const safeConfig = { ...config, shocks: [], shockScheduleText: '' };
+  try {
+    await writeTrialConfigToDisk(safeConfig);
+    globalTrialConfig = safeConfig;
+  } catch (err) {
+    console.error('Failed to save trial config:', err);
+    return res.status(500).json({ error: 'Failed to save trial config' });
+  }
+
+  io.emit('global-trial-config', safeConfig);
+  res.json({ success: true, config: safeConfig });
+});
+
 // API endpoint to get all results
 app.get('/api/results', (req, res) => {
   console.log(`GET /api/results → ${allResults.length} results`);
@@ -237,12 +259,14 @@ app.post('/api/admin/clear-teams', (req, res) => {
 // Other global variables
 const rooms = new Map();
 let globalAdminConfig = null;
+let globalTrialConfig = null;
 let redisState = null;
 const ROOM_KEY_PREFIX = 'dsc:room:';
 const TEAM_ROSTER_PREFIX = 'dsc:roster:';
 const GLOBAL_KEY = 'dsc:global:adminConfig';
 const ADMIN_CONFIG_DIR = path.join(__dirname, '.persist');
 const ADMIN_CONFIG_FILE = path.join(ADMIN_CONFIG_DIR, 'admin-config.json');
+const TRIAL_CONFIG_FILE = path.join(ADMIN_CONFIG_DIR, 'trial-config.json');
 const RESULTS_FILE = path.join(ADMIN_CONFIG_DIR, 'results.json');
 let adminConfigLoadedFromDisk = false;
 
@@ -267,6 +291,21 @@ async function writeAdminConfigToDisk(config) {
   } catch (err) {
     console.warn('Failed to persist admin config to disk:', err.message);
   }
+}
+
+async function readTrialConfigFromDisk() {
+  try {
+    const raw = await fs.readFile(TRIAL_CONFIG_FILE, 'utf8');
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? parsed : null;
+  } catch (_err) {
+    return null;
+  }
+}
+
+async function writeTrialConfigToDisk(config) {
+  await fs.mkdir(ADMIN_CONFIG_DIR, { recursive: true });
+  await fs.writeFile(TRIAL_CONFIG_FILE, JSON.stringify(config, null, 2), 'utf8');
 }
 
 async function loadResultsFromDisk() {
