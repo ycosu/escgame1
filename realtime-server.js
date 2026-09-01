@@ -211,25 +211,36 @@ app.get('/api/results', (req, res) => {
   res.json({ results: allResults });
 });
 
+app.get('/api/trial-results', (_req, res) => {
+  res.json({ results: allTrialResults });
+});
+
+app.post('/api/trial-results', async (req, res) => {
+  const result = req.body;
+  if (!result) return res.status(400).json({ error: 'Missing trial result data' });
+  allTrialResults.push({ ...result, isTrial: true });
+  try {
+    await writeTrialResultsToDisk(allTrialResults);
+  } catch (err) {
+    allTrialResults.pop();
+    return res.status(500).json({ error: 'Failed to persist trial result data' });
+  }
+  res.json({ success: true, totalResults: allTrialResults.length });
+});
+
+app.post('/api/admin/clear-trial-results', async (_req, res) => {
+  const cleared = allTrialResults.length;
+  try {
+    await writeTrialResultsToDisk([]);
+  } catch (err) {
+    return res.status(500).json({ error: 'Failed to clear trial result data' });
+  }
+  allTrialResults.length = 0;
+  res.json({ success: true, cleared });
+});
+
 // API endpoint to save a result
 app.post('/api/results', async (req, res) => {
-
-  app.get('/api/trial-results', (_req, res) => {
-    res.json({ results: allTrialResults });
-  });
-
-  app.post('/api/trial-results', async (req, res) => {
-    const result = req.body;
-    if (!result) return res.status(400).json({ error: 'Missing trial result data' });
-    allTrialResults.push({ ...result, isTrial: true });
-    try {
-      await writeTrialResultsToDisk(allTrialResults);
-    } catch (err) {
-      allTrialResults.pop();
-      return res.status(500).json({ error: 'Failed to persist trial result data' });
-    }
-    res.json({ success: true, totalResults: allTrialResults.length });
-  });
   const result = req.body;
   
   if (!result) {
@@ -338,24 +349,24 @@ async function loadResultsFromDisk() {
 }
 
 async function writeResultsToDisk(results) {
-
-  async function loadTrialResultsFromDisk() {
-    try {
-      const stored = JSON.parse(await fs.readFile(TRIAL_RESULTS_FILE, 'utf8'));
-      if (Array.isArray(stored)) allTrialResults.push(...stored);
-    } catch (err) {
-      if (err.code !== 'ENOENT') console.warn('Failed to load trial results from disk:', err.message);
-    }
-  }
-
-  async function writeTrialResultsToDisk(results) {
-    await fs.mkdir(ADMIN_CONFIG_DIR, { recursive: true });
-    await fs.writeFile(TRIAL_RESULTS_FILE, JSON.stringify(results, null, 2), 'utf8');
-  }
   await fs.mkdir(ADMIN_CONFIG_DIR, { recursive: true });
   const tempFile = `${RESULTS_FILE}.tmp`;
   await fs.writeFile(tempFile, JSON.stringify(results, null, 2), 'utf8');
   await fs.rename(tempFile, RESULTS_FILE);
+}
+
+async function loadTrialResultsFromDisk() {
+  try {
+    const stored = JSON.parse(await fs.readFile(TRIAL_RESULTS_FILE, 'utf8'));
+    if (Array.isArray(stored)) allTrialResults.push(...stored);
+  } catch (err) {
+    if (err.code !== 'ENOENT') console.warn('Failed to load trial results from disk:', err.message);
+  }
+}
+
+async function writeTrialResultsToDisk(results) {
+  await fs.mkdir(ADMIN_CONFIG_DIR, { recursive: true });
+  await fs.writeFile(TRIAL_RESULTS_FILE, JSON.stringify(results, null, 2), 'utf8');
 }
 
 function getRoomState(roomKey) {
