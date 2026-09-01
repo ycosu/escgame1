@@ -2922,10 +2922,9 @@
             player.backorderCost = Number(state.backlogCostTotal || 0);
             player.teamPenaltyCost = Number(state.shortagePenaltyCost || 0);
 
-            // End the game for EVERY role once the synced day reaches the total. The
-            // local day counter is only advanced on the Federal player's browser, so
-            // other roles must finish via this synced signal. endGame() is idempotent.
-            if (game.gameStarted && !game.ended && Number(game.currentDay) >= Number(game.totalDays)) {
+            // End the game for every role only after the final displayed day has
+            // resolved. Reaching Day 5 means it is ready for orders, not finished.
+            if (game.gameStarted && !game.ended && Number(game.sharedTeamState?.lastResolvedDay) >= Number(game.totalDays)) {
                 endGame();
             }
         }
