@@ -3866,7 +3866,7 @@
             }
         }
 
-        function saveTrialAdminConfig() {
+        async function saveTrialAdminConfig() {
             const lagTime = Math.max(1, parseInt(document.getElementById('trialLagTime').value || '1', 10));
             const totalDays = 5;
 
@@ -3882,8 +3882,21 @@
                 shockScheduleText: ''
             };
 
-            saveTrialConfigToStorage(cfg);
-            alert('Trial controls saved. New trials will use these settings. The trial never has disruptions.');
+            try {
+                const base = (typeof getSocketUrl === 'function' ? (getSocketUrl() || '') : '');
+                const response = await fetch(`${base.replace(/\/$/, '')}/api/admin/trial-config`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(cfg)
+                });
+                if (!response.ok) throw new Error(`Server returned ${response.status}`);
+                const payload = await response.json();
+                saveTrialConfigToStorage(payload.config || cfg);
+                alert('Trial controls saved. New trials will use these settings. The trial never has disruptions.');
+            } catch (err) {
+                console.warn('Failed to persist trial controls:', err);
+                alert('Trial controls could not be saved to the server. Check the connection and try again.');
+            }
         }
 
         async function refreshTrialAdminResults() {
