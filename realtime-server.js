@@ -37,6 +37,11 @@ function mergeTeamState(teamKey, incoming) {
   const dayAdvanced = newDay > prevDay;
   const incomingRoleStates = incoming.roleStates || {};
   const roleStates = { ...(existing.roleStates || {}), ...incomingRoleStates };
+  const gameConfig = {
+    ...getTeamConfigSnapshot(teamKey),
+    ...(incoming.gameConfig || {}),
+    ...(existing.gameConfig || {})
+  };
 
   Object.keys(existing.roleStates || {}).forEach(role => {
     const existingRole = existing.roleStates[role] || {};
@@ -58,7 +63,7 @@ function mergeTeamState(teamKey, incoming) {
     ...incoming,
     roomKey: existing.roomKey || incoming.roomKey || teamKey,
     isTrial: String(teamKey).startsWith('TRIAL'),
-    gameConfig: existing.gameConfig || incoming.gameConfig || getTeamConfigSnapshot(teamKey),
+    gameConfig,
     roleStates,
     dayOrders: dayAdvanced
       ? (incoming.dayOrders || {})
@@ -84,6 +89,12 @@ function getTeamConfigSnapshot(roomKey) {
   const trial = String(roomKey || '').startsWith('TRIAL');
   const source = trial ? (globalTrialConfig || {}) : (globalAdminConfig || {});
   return {
+    lagTime: 1,
+    initialInventory: 12,
+    endowment: 25,
+    inventoryPenaltyRate: 0.1,
+    backlogPenaltyRate: 0.3,
+    teamBacklogPenaltyRate: 0.5,
     ...source,
     totalDays: trial ? 5 : Math.max(1, Number(source.totalDays || 20)),
     shocks: trial ? [] : [...(source.shocks || [])],
@@ -109,6 +120,7 @@ function filterTeamStateForRole(state, role) {
     currentDay: state.currentDay,
     totalDays: state.totalDays,
     isTrial: state.isTrial,
+    gameConfig: state.gameConfig,
     lastResolvedDay: state.lastResolvedDay,
     completed: state.completed,
     submittedRoles: Object.keys(state.dayOrders || {}),

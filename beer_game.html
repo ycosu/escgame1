@@ -2930,6 +2930,9 @@
                 if (Number.isFinite(sharedTotalDays) && sharedTotalDays > 0) game.totalDays = sharedTotalDays;
                 // Keep the trial banner/logic consistent across every teammate.
                 if (typeof game.sharedTeamState.isTrial === 'boolean') game.isTrial = game.sharedTeamState.isTrial;
+                if (game.isTrial && game.sharedTeamState.gameConfig && typeof game.sharedTeamState.gameConfig === 'object') {
+                    game.adminConfig = { ...getTrialConfig(), ...game.sharedTeamState.gameConfig };
+                }
             }
             const player = game.players?.player;
             const role = player?.role;
