@@ -2041,10 +2041,6 @@
                                         <h3>Budget</h3>
                                         <div class="stat-value" id="displayGameMoney">$25.00</div>
                                     </div>
-                                    <div class="stat-box">
-                                        <h3>Total Cost</h3>
-                                        <div class="stat-value" id="displayTotalCost">$0.00</div>
-                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -2637,6 +2633,9 @@
         }
 
         function getSafePlayerTotalCost(player) {
+            const role = player?.role;
+            const resolvedCost = Number(game.sharedTeamState?.roleStates?.[role]?.totalCost);
+            if (Number.isFinite(resolvedCost)) return Math.max(0, resolvedCost);
             if (!player || typeof player.getTotalCost !== 'function') return 0;
             return Number(player.getTotalCost()) || 0;
         }
@@ -4669,7 +4668,6 @@
             document.getElementById('displayTeam').textContent = game.teamName || '-';
             document.getElementById('displayRole').textContent = p.role || '-';
             document.getElementById('displayGameMoney').textContent = '$' + gameMoney.toFixed(2);
-            document.getElementById('displayTotalCost').textContent = '$' + totalCost.toFixed(2);
             updateSupplyChain();
             updateStats();
             updateTeamStatus();
