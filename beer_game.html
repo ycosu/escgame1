@@ -4969,7 +4969,7 @@
                     upstreamState.incomingOrders.push({ quantity: update.orderPlaced, dueDay: getCurrentGameDay() + lagTime });
                 } else {
                     // The factory receives the Stockpile's order before producing a shipment.
-                    state.factoryOrders.push({ quantity: update.orderPlaced, dueDay: getCurrentGameDay() + lagTime });
+                    state.factoryOrders.push({ quantity: update.orderPlaced, dueDay: getCurrentGameDay() + (2 * lagTime) });
                 }
 
                 const inventoryPenalty = state.inventory * rates.inventoryPenalty;
