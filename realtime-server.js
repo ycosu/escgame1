@@ -144,12 +144,17 @@ function resolveTeamDay(state) {
   });
 
   const teamPenalty = updates['End Users'].backlog > 0 ? Math.max(0, Number(config.teamBacklogPenaltyRate || 0)) : 0;
+  // Clear every role's processed arrivals before scheduling new ones. Doing this
+  // inside the scheduling loop would overwrite orders queued for a later role.
+  ROLES.forEach(role => {
+    const update = updates[role];
+    update.roleState.incomingShipments = update.shipments.remaining;
+    update.roleState.incomingOrders = update.information.remaining;
+    update.roleState.factoryOrders = update.production.remaining;
+  });
   ROLES.forEach((role, index) => {
     const update = updates[role];
     const roleState = update.roleState;
-    roleState.incomingShipments = update.shipments.remaining;
-    roleState.incomingOrders = update.information.remaining;
-    roleState.factoryOrders = update.production.remaining;
     const upstream = ROLES[index + 1];
     const downstream = ROLES[index - 1];
     if (downstream) roleStates[downstream].incomingShipments.push({ quantity: update.shipped, dueDay: day + lag });
