@@ -2631,6 +2631,9 @@
         }
 
         function getSafePlayerTotalCost(player) {
+            const role = player?.role;
+            const resolvedCost = Number(game.sharedTeamState?.roleStates?.[role]?.totalCost);
+            if (Number.isFinite(resolvedCost)) return Math.max(0, resolvedCost);
             if (!player || typeof player.getTotalCost !== 'function') return 0;
             return Number(player.getTotalCost()) || 0;
         }
