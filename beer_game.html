@@ -4989,7 +4989,7 @@
                 state.history.push({
                     day: game.currentDay,
                     role,
-                    arrived: update.arrivedToday,
+                    arrived: update.arrivedToday + (role === 'Federal Stockpile' ? update.factoryOrderReceived : 0),
                     demand: update.incomingOrder,
                     receivedDemand: update.incomingOrder,
                     shipped: update.shipped,
@@ -5011,7 +5011,7 @@
                     role,
                     demand: update.incomingOrder,
                     receivedDemand: update.incomingOrder,
-                    arrived: update.arrivedToday,
+                    arrived: update.arrivedToday + (role === 'Federal Stockpile' ? update.factoryOrderReceived : 0),
                     shipped: update.shipped,
                     order: update.orderPlaced,
                     inventory: state.inventory,

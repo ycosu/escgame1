@@ -169,7 +169,7 @@ function resolveTeamDay(state) {
     roleState.shortagePenaltyCost = Number((Number(roleState.shortagePenaltyCost || 0) + teamPenalty).toFixed(2));
     roleState.totalCost = Number((Number(roleState.totalCost || 0) + roundCost).toFixed(2));
     roleState.history = Array.isArray(roleState.history) ? roleState.history : [];
-    roleState.history.push({ day, role, arrived: update.shipments.quantity, demand: update.incomingDemand, receivedDemand: update.incomingDemand, shipped: update.shipped, order: update.order, inventory: update.inventory, backorders: update.backlog, lagTime: lag, shortageDay: teamPenalty ? 1 : 0, roundCost });
+    roleState.history.push({ day, role, arrived: update.shipments.quantity + (role === 'Federal Stockpile' ? update.production.quantity : 0), demand: update.incomingDemand, receivedDemand: update.incomingDemand, shipped: update.shipped, order: update.order, inventory: update.inventory, backorders: update.backlog, lagTime: lag, shortageDay: teamPenalty ? 1 : 0, roundCost });
   });
 
   state.lastResolvedDay = day;
