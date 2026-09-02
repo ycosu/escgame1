@@ -58,7 +58,7 @@ function mergeTeamState(teamKey, incoming) {
     ...incoming,
     roomKey: existing.roomKey || incoming.roomKey || teamKey,
     isTrial: String(teamKey).startsWith('TRIAL'),
-    gameConfig: existing.gameConfig || getTeamConfigSnapshot(teamKey),
+    gameConfig: existing.gameConfig || incoming.gameConfig || getTeamConfigSnapshot(teamKey),
     roleStates,
     dayOrders: dayAdvanced
       ? (incoming.dayOrders || {})

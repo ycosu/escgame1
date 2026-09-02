@@ -4747,6 +4747,20 @@
                 if (!cfg || typeof cfg !== 'object') return;
                 saveTrialConfigToStorage(cfg);
                 if (game.gameStarted && game.isTrial) game.adminConfig = getTrialConfig();
+
+                const trialCfg = getTrialConfig();
+                const lagInput = document.getElementById('trialLagTime');
+                const initialInventoryInput = document.getElementById('trialInitialInventory');
+                const endowmentInput = document.getElementById('trialEndowment');
+                const inventoryPenaltyInput = document.getElementById('trialInventoryPenalty');
+                const backlogPenaltyInput = document.getElementById('trialBacklogPenalty');
+                const teamBacklogPenaltyInput = document.getElementById('trialTeamBacklogPenalty');
+                if (lagInput) lagInput.value = trialCfg.lagTime;
+                if (initialInventoryInput) initialInventoryInput.value = trialCfg.initialInventory;
+                if (endowmentInput) endowmentInput.value = trialCfg.endowment;
+                if (inventoryPenaltyInput) inventoryPenaltyInput.value = trialCfg.inventoryPenaltyRate;
+                if (backlogPenaltyInput) backlogPenaltyInput.value = trialCfg.backlogPenaltyRate;
+                if (teamBacklogPenaltyInput) teamBacklogPenaltyInput.value = trialCfg.teamBacklogPenaltyRate;
             });
 
             if (!latestHistory.length) {
