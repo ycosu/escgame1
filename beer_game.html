@@ -2041,6 +2041,10 @@
                                         <h3>Budget</h3>
                                         <div class="stat-value" id="displayGameMoney">$25.00</div>
                                     </div>
+                                    <div class="stat-box">
+                                        <h3>Total Cost</h3>
+                                        <div class="stat-value" id="displayTotalCost">$0.00</div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -4665,6 +4669,7 @@
             document.getElementById('displayTeam').textContent = game.teamName || '-';
             document.getElementById('displayRole').textContent = p.role || '-';
             document.getElementById('displayGameMoney').textContent = '$' + gameMoney.toFixed(2);
+            document.getElementById('displayTotalCost').textContent = '$' + totalCost.toFixed(2);
             updateSupplyChain();
             updateStats();
             updateTeamStatus();
