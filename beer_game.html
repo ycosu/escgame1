@@ -3951,26 +3951,44 @@
                 return;
             }
 
+            const roleColumnDefs = [
+                { role: 'End Users', prefix: 'endUsers' },
+                { role: 'State/Local Hubs', prefix: 'stateLocal' },
+                { role: 'Regional Hubs', prefix: 'regional' },
+                { role: 'Federal Stockpile', prefix: 'federal' }
+            ];
             const headers = [
                 'timestamp', 'participantId', 'name', 'role', 'teamNumber', 'treatmentGroup',
-                'round', 'dayIndex', 'demand', 'order', 'inventory', 'backlog',
+                'round', 'dayIndex', 'demand', 'order', 'inventory', 'backlog', 'arrived', 'shipped',
                 'inventoryCostDay', 'backlogCostDay', 'teamPenaltyDay', 'totalCostDay',
-                'effectiveLagTime', 'baseLagTime', 'endowment',
-                'inventoryPenaltyRate', 'backlogPenaltyRate', 'teamBacklogPenaltyRate', 'totalDays'
+                'budgetStartDay', 'cumulativeCost', 'budgetEndDay',
+                'teamTotalInventory', 'teamTotalBacklog', 'teamInventoryCostDay', 'teamBacklogCostDay', 'teamPenaltyDay', 'teamTotalCostDay',
+                'effectiveLagTime', 'baseLagTime', 'shockScheduleText', 'endowment',
+                'inventoryPenaltyRate', 'backlogPenaltyRate', 'teamBacklogPenaltyRate', 'crtAnswer', 'crtCorrect'
             ];
+            roleColumnDefs.forEach(({ prefix }) => headers.push(
+                `${prefix}_demand`, `${prefix}_order`, `${prefix}_inventory`, `${prefix}_backlog`, `${prefix}_arrived`, `${prefix}_shipped`
+            ));
 
             const lines = [headers.map(sanitizeCSVValue).join(',')];
-            const endUserBacklogByRunDay = {};
-
+            const runDayAgg = {};
             results.forEach(stored => {
-                if (stored.role !== 'End Users') return;
                 const runKey = stored.timestamp || '__unknown__';
-                const history = Array.isArray(stored.history) ? stored.history : [];
-                history.forEach(entry => {
+                if (!runDayAgg[runKey]) runDayAgg[runKey] = {};
+                (Array.isArray(stored.history) ? stored.history : []).forEach(entry => {
                     const day = Number(entry.day);
-                    if (Number.isFinite(day) && Number(entry.backorders || 0) > 0) {
-                        endUserBacklogByRunDay[`${runKey}|${day}`] = true;
+                    if (!Number.isFinite(day)) return;
+                    const dayState = runDayAgg[runKey][day] || { totalInventory: 0, totalBacklog: 0, endUserBacklog: false, roleStatus: {} };
+                    const role = String(entry.role || stored.role || '');
+                    if (role && !dayState.roleStatus[role]) {
+                        dayState.totalInventory += Number(entry.inventory || 0);
+                        dayState.totalBacklog += Number(entry.backorders || 0);
                     }
+                    dayState.roleStatus[role] = {
+                        demand: entry.demand ?? '', order: entry.order ?? '', inventory: entry.inventory ?? '', backorders: entry.backorders ?? '', arrived: entry.arrived ?? '', shipped: entry.shipped ?? ''
+                    };
+                    if (role === 'End Users' && Number(entry.backorders || 0) > 0) dayState.endUserBacklog = true;
+                    runDayAgg[runKey][day] = dayState;
                 });
             });
 
@@ -3979,6 +3997,9 @@
                 const roleEntries = history
                     .filter(h => String(h.role) === String(stored.role))
                     .sort((a, b) => Number(a.day) - Number(b.day));
+                const runKey = stored.timestamp || '__unknown__';
+                const endowment = Math.max(0, Number(stored.endowment ?? CRT_ENDOWMENT));
+                let cumulativeCost = 0;
 
                 roleEntries.forEach(entry => {
                     const day = Number(entry.day);
@@ -3991,10 +4012,15 @@
                     const effectiveLagTime = Math.max(1, Number(entry.lagTime || stored.lagTime || 1));
                     const inventoryCostDay = Math.max(0, inventory) * inventoryPenaltyRate;
                     const backlogCostDay = backlog * backlogPenaltyRate;
-                    const teamPenaltyDay = endUserBacklogByRunDay[`${stored.timestamp || '__unknown__'}|${day}`]
-                        ? teamBacklogPenaltyRate
-                        : 0;
+                    const teamAgg = runDayAgg[runKey]?.[day] || { totalInventory: 0, totalBacklog: 0, endUserBacklog: false, roleStatus: {} };
+                    const teamPenaltyDay = teamAgg.endUserBacklog ? teamBacklogPenaltyRate : 0;
                     const totalCostDay = inventoryCostDay + backlogCostDay + teamPenaltyDay;
+                    const budgetStartDay = Math.max(0, endowment - cumulativeCost);
+                    cumulativeCost = Number((cumulativeCost + totalCostDay).toFixed(2));
+                    const budgetEndDay = Math.max(0, endowment - cumulativeCost);
+                    const teamInventoryCostDay = teamAgg.totalInventory * inventoryPenaltyRate;
+                    const teamBacklogCostDay = teamAgg.totalBacklog * backlogPenaltyRate;
+                    const teamTotalCostDay = teamInventoryCostDay + teamBacklogCostDay + teamPenaltyDay;
 
                     const row = [
                         stored.timestamp || '',
@@ -4009,18 +4035,36 @@
                         entry.order ?? '',
                         inventory,
                         backlog,
+                        entry.arrived ?? '',
+                        entry.shipped ?? '',
                         inventoryCostDay.toFixed(2),
                         backlogCostDay.toFixed(2),
                         teamPenaltyDay.toFixed(2),
                         totalCostDay.toFixed(2),
+                        budgetStartDay.toFixed(2),
+                        cumulativeCost.toFixed(2),
+                        budgetEndDay.toFixed(2),
+                        teamAgg.totalInventory,
+                        teamAgg.totalBacklog,
+                        teamInventoryCostDay.toFixed(2),
+                        teamBacklogCostDay.toFixed(2),
+                        teamPenaltyDay.toFixed(2),
+                        teamTotalCostDay.toFixed(2),
                         effectiveLagTime,
                         Math.max(1, Number(stored.lagTime || 1)),
+                        '',
                         Number(stored.endowment ?? CRT_ENDOWMENT).toFixed(2),
                         inventoryPenaltyRate.toFixed(4),
                         backlogPenaltyRate.toFixed(4),
                         teamBacklogPenaltyRate.toFixed(4),
-                        Number(stored.totalDays || 0)
+                        '',
+                        ''
                     ];
+
+                    roleColumnDefs.forEach(({ role }) => {
+                        const roleSnapshot = teamAgg.roleStatus[role] || {};
+                        row.push(roleSnapshot.demand ?? '', roleSnapshot.order ?? '', roleSnapshot.inventory ?? '', roleSnapshot.backorders ?? '', roleSnapshot.arrived ?? '', roleSnapshot.shipped ?? '');
+                    });
 
                     lines.push(row.map(sanitizeCSVValue).join(','));
                 });
@@ -4070,6 +4114,7 @@
             // Export per-person per-round CSV with full-team status columns.
             const headers = [
                 'timestamp','participantId','name','role','teamNumber','treatmentGroup','round','dayIndex','demand','order','inventory','backlog','arrived','shipped','inventoryCostDay','backlogCostDay','teamPenaltyDay','totalCostDay',
+                'budgetStartDay','cumulativeCost','budgetEndDay',
                 'teamTotalInventory','teamTotalBacklog','teamInventoryCostDay','teamBacklogCostDay','teamPenaltyDay','teamTotalCostDay',
                 'effectiveLagTime','baseLagTime','shockScheduleText','endowment','inventoryPenaltyRate','backlogPenaltyRate','teamBacklogPenaltyRate','crtAnswer','crtCorrect'
             ];
@@ -4137,6 +4182,8 @@
 
                 const ts = stored.timestamp || '__unknown__';
                 const dayMap = runDayAgg[ts] || {};
+                const endowment = Math.max(0, Number(stored.endowment ?? CRT_ENDOWMENT));
+                let cumulativeCost = 0;
 
                 roleEntries.forEach(entry => {
                     const day = Number(entry.day);
@@ -4155,6 +4202,9 @@
                     const teamPenaltyDay = teamAgg.endUserBacklog ? teamBacklogPenaltyRate : 0;
                     const teamTotalCostDay = teamInventoryCostDay + teamBacklogCostDay + teamPenaltyDay;
                     const totalCostDay = inventoryCostDay + backlogCostDay + teamPenaltyDay;
+                    const budgetStartDay = Math.max(0, endowment - cumulativeCost);
+                    cumulativeCost = Number((cumulativeCost + totalCostDay).toFixed(2));
+                    const budgetEndDay = Math.max(0, endowment - cumulativeCost);
 
                     const row = [
                         stored.timestamp || '',
@@ -4175,6 +4225,9 @@
                         backlogCostDay.toFixed(2),
                         teamPenaltyDay.toFixed(2),
                         totalCostDay.toFixed(2),
+                        budgetStartDay.toFixed(2),
+                        cumulativeCost.toFixed(2),
+                        budgetEndDay.toFixed(2),
                         teamAgg.totalInventory,
                         teamAgg.totalBacklog,
                         teamInventoryCostDay.toFixed(2),
