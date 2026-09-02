@@ -33,11 +33,15 @@ function mergeTeamState(teamKey, incoming) {
   const existing = teamStates.get(teamKey) || {};
   const prevDay = Number(existing.currentDay ?? 0);
   const newDay = Number(incoming.currentDay ?? prevDay);
+  if (prevDay > 0 && newDay < prevDay) return existing;
   const dayAdvanced = newDay > prevDay;
 
   const merged = {
     ...existing,
     ...incoming,
+    roomKey: existing.roomKey || incoming.roomKey || teamKey,
+    isTrial: String(teamKey).startsWith('TRIAL'),
+    gameConfig: existing.gameConfig || getTeamConfigSnapshot(teamKey),
     roleStates: { ...(existing.roleStates || {}), ...(incoming.roleStates || {}) },
     dayOrders: dayAdvanced
       ? (incoming.dayOrders || {})
@@ -53,17 +57,170 @@ function mergeTeamState(teamKey, incoming) {
   return merged;
 }
 
-function requestResolver(roomKey, state, excludedPlayerId = null) {
+const ROLES = ['End Users', 'State/Local Hubs', 'Regional Hubs', 'Federal Stockpile'];
+function isHighVisibilityRoom(roomKey) {
+  const treatment = String(roomKey || '').split('_').pop().toUpperCase();
+  return treatment === 'A' || treatment === 'B';
+}
+
+function getTeamConfigSnapshot(roomKey) {
+  const trial = String(roomKey || '').startsWith('TRIAL');
+  const source = trial ? (globalTrialConfig || {}) : (globalAdminConfig || {});
+  return {
+    ...source,
+    totalDays: trial ? 5 : Math.max(1, Number(source.totalDays || 20)),
+    shocks: trial ? [] : [...(source.shocks || [])],
+    shockScheduleText: trial ? '' : (source.shockScheduleText || '')
+  };
+}
+
+function filterTeamStateForRole(state, role) {
+  if (isHighVisibilityRoom(state.roomKey) || !role) return state;
+  const roleIndex = ROLES.indexOf(role);
+  const downstreamRole = roleIndex > 0 ? ROLES[roleIndex - 1] : null;
+  const filteredStates = {};
+  if (state.roleStates?.[role]) filteredStates[role] = state.roleStates[role];
+  if (downstreamRole && state.roleStates?.[downstreamRole]) {
+    filteredStates[downstreamRole] = {
+      role: downstreamRole,
+      lastDayOrder: state.roleStates[downstreamRole].lastDayOrder
+    };
+  }
+  return {
+    roomKey: state.roomKey,
+    teamName: state.teamName,
+    currentDay: state.currentDay,
+    totalDays: state.totalDays,
+    isTrial: state.isTrial,
+    lastResolvedDay: state.lastResolvedDay,
+    completed: state.completed,
+    submittedRoles: Object.keys(state.dayOrders || {}),
+    visibilityFiltered: true,
+    roleStates: filteredStates
+  };
+}
+
+function broadcastTeamState(roomKey, state) {
   const sockets = io.sockets.adapter.rooms.get(roomKey);
-  if (!sockets) return false;
+  if (!sockets) return;
   for (const socketId of sockets) {
     const socket = io.sockets.sockets.get(socketId);
-    if (!socket || socket.data.playerId === excludedPlayerId) continue;
-    state.resolverPlayerId = socket.data.playerId;
-    socket.emit('resolve-team-day', { roomKey, day: Number(state.currentDay || 0), resolverPlayerId: state.resolverPlayerId, state });
-    return true;
+    if (!socket) continue;
+    const role = socket.data.playerData?.role;
+    socket.emit(`room-node:${roomKey}:teamState`, filterTeamStateForRole(state, role));
   }
-  return false;
+}
+
+function resolveTeamDay(state) {
+  const day = Number(state.currentDay || 1);
+  const config = state.gameConfig || globalAdminConfig || {};
+  const baseLag = Math.max(1, Number(config.lagTime || 1));
+  const shocks = state.isTrial ? [] : (Array.isArray(config.shocks) ? config.shocks : []);
+  const shockLag = shocks.filter(shock => Number(shock.round) === day).reduce((sum, shock) => sum + Math.max(0, Number(shock.lagDelta || 0)), 0);
+  const lag = baseLag + shockLag;
+  const roleStates = state.roleStates || {};
+  const updates = {};
+
+  ROLES.forEach((role, index) => {
+    const roleState = roleStates[role];
+    const receive = (queue) => {
+      let quantity = 0;
+      const remaining = [];
+      (Array.isArray(queue) ? queue : []).forEach(entry => {
+        const item = entry && typeof entry === 'object' ? entry : { quantity: Number(entry || 0), dueDay: day };
+        if (Number(item.dueDay) <= day) quantity += Number(item.quantity || 0);
+        else remaining.push(item);
+      });
+      return { quantity, remaining };
+    };
+    const shipments = receive(roleState.incomingShipments);
+    const information = receive(roleState.incomingOrders);
+    const production = receive(roleState.factoryOrders);
+    const incomingDemand = index === 0 ? (state.isTrial ? 4 : (shocks.some(shock => Number(shock.round) === day) ? 8 : 4)) : information.quantity;
+    const available = Math.max(0, Number(roleState.inventory || 0)) + shipments.quantity + (role === 'Federal Stockpile' ? production.quantity : 0);
+    const totalDemand = incomingDemand + Math.max(0, Number(roleState.backorders || 0));
+    const shipped = Math.min(available, totalDemand);
+    updates[role] = { roleState, shipments, information, production, incomingDemand, shipped, inventory: available - shipped, backlog: totalDemand - shipped, order: Number(state.dayOrders[role] || 0) };
+  });
+
+  const teamPenalty = updates['End Users'].backlog > 0 ? Math.max(0, Number(config.teamBacklogPenaltyRate || 0)) : 0;
+  // Clear every role's processed arrivals before scheduling new ones. Doing this
+  // inside the scheduling loop would overwrite orders queued for a later role.
+  ROLES.forEach(role => {
+    const update = updates[role];
+    update.roleState.incomingShipments = update.shipments.remaining;
+    update.roleState.incomingOrders = update.information.remaining;
+    update.roleState.factoryOrders = update.production.remaining;
+  });
+  ROLES.forEach((role, index) => {
+    const update = updates[role];
+    const roleState = update.roleState;
+    const upstream = ROLES[index + 1];
+    const downstream = ROLES[index - 1];
+    if (downstream) roleStates[downstream].incomingShipments.push({ quantity: update.shipped, dueDay: day + lag });
+    if (upstream) roleStates[upstream].incomingOrders.push({ quantity: update.order, dueDay: day + lag });
+    else roleState.factoryOrders.push({ quantity: update.order, dueDay: day + lag });
+    const inventoryCost = update.inventory * Math.max(0, Number(config.inventoryPenaltyRate || 0));
+    const backlogCost = update.backlog * Math.max(0, Number(config.backlogPenaltyRate || 0));
+    const roundCost = inventoryCost + backlogCost + teamPenalty;
+    Object.assign(roleState, { inventory: update.inventory, backorders: update.backlog, demand: update.incomingDemand, receivedDemand: update.incomingDemand, order: 0, pendingOrder: null, lastDayOrder: update.order, lastRoundCost: roundCost });
+    roleState.inventoryCostTotal = Number((Number(roleState.inventoryCostTotal || 0) + inventoryCost).toFixed(2));
+    roleState.backlogCostTotal = Number((Number(roleState.backlogCostTotal || 0) + backlogCost).toFixed(2));
+    roleState.shortagePenaltyCost = Number((Number(roleState.shortagePenaltyCost || 0) + teamPenalty).toFixed(2));
+    roleState.totalCost = Number((Number(roleState.totalCost || 0) + roundCost).toFixed(2));
+    roleState.history = Array.isArray(roleState.history) ? roleState.history : [];
+    roleState.history.push({ day, role, arrived: update.shipments.quantity, demand: update.incomingDemand, receivedDemand: update.incomingDemand, shipped: update.shipped, order: update.order, inventory: update.inventory, backorders: update.backlog, lagTime: lag, shortageDay: teamPenalty ? 1 : 0, roundCost });
+  });
+
+  state.lastResolvedDay = day;
+  state.dayOrders = {};
+  state.roleSubmissions = {};
+  state.resolvingDay = null;
+  if (day < Number(state.totalDays || 20)) state.currentDay = day + 1;
+  else state.completed = true;
+  return state;
+}
+
+async function persistCompletedTeamResults(state) {
+  if (!state.completed || state.serverResultsSaved) return;
+  const config = state.gameConfig || globalAdminConfig || {};
+  const rosterByRole = new Map((teamRosters.get(state.roomKey) || []).map(member => [member.role, member]));
+  const target = state.isTrial ? allTrialResults : allResults;
+  const records = ROLES.map((role, index) => {
+    const roleState = state.roleStates?.[role] || {};
+    const member = rosterByRole.get(role) || {};
+    const inventoryCost = Number(roleState.inventoryCostTotal || 0);
+    const backorderCost = Number(roleState.backlogCostTotal || 0);
+    return {
+      rank: index + 1,
+      timestamp: state.completedAt,
+      participantId: member.playerId || `${state.roomKey}_${role.replace(/\s+/g, '_')}`,
+      name: member.name || `${state.teamName || state.roomKey} - ${role}`,
+      role,
+      teamNumber: state.roomKey?.replace(/^TRIAL/, '').split('_')[0] || '',
+      treatmentGroup: state.roomKey?.split('_')[1] || '',
+      totalDays: state.totalDays,
+      inventoryCost: Number(inventoryCost.toFixed(2)),
+      backorderCost: Number(backorderCost.toFixed(2)),
+      totalCost: Number(Number(roleState.totalCost || (inventoryCost + backorderCost)).toFixed(2)),
+      inventoryPenaltyRate: Number(config.inventoryPenaltyRate || 0),
+      backlogPenaltyRate: Number(config.backlogPenaltyRate || 0),
+      teamBacklogPenaltyRate: Number(config.teamBacklogPenaltyRate || 0),
+      lagTime: config.lagTime,
+      shockScheduleText: state.isTrial ? '' : (config.shockScheduleText || ''),
+      endowment: Number(config.endowment || 0),
+      isTrial: !!state.isTrial,
+      history: Array.isArray(roleState.history) ? roleState.history : []
+    };
+  });
+  target.push(...records);
+  try {
+    await (state.isTrial ? writeTrialResultsToDisk(target) : writeResultsToDisk(target));
+    state.serverResultsSaved = true;
+  } catch (err) {
+    target.splice(target.length - records.length, records.length);
+    throw err;
+  }
 }
 
 // Create server FIRST so routes can access io
@@ -83,12 +240,15 @@ app.get('/health', (_req, res) => {
   });
 });
 
+app.get('/', (_req, res) => {
+  res.redirect('/beer_game.html');
+});
+
 // API endpoint to get team roster
 app.get('/api/team/:teamNum/:teamLetter/roster', (req, res) => {
   const { teamNum, teamLetter } = req.params;
   const teamKey = `${teamNum}_${teamLetter}`;
   const roster = teamRosters.get(teamKey) || [];
-  console.log(`GET /api/team/${teamNum}/${teamLetter}/roster → ${roster.length} members:`, roster.map(m => `${m.name} (${m.role})`));
   res.json({ roster });
 });
 
@@ -102,6 +262,9 @@ app.post('/api/team/:teamNum/:teamLetter/join', (req, res) => {
   }
   
   const teamKey = `${teamNum}_${teamLetter}`;
+  if (teamStates.get(teamKey)?.completed) {
+    return res.status(409).json({ error: 'This team session is complete. Use a different team number and letter.' });
+  }
   let roster = teamRosters.get(teamKey) || [];
   
   // Check if role is already taken by another player
@@ -130,7 +293,8 @@ app.post('/api/team/:teamNum/:teamLetter/join', (req, res) => {
   console.log(`✅ Team ${teamKey} has ${roster.length} members:`, roster.map(m => `${m.name} (${m.role})`));
   res.json({ success: true, roster });
   
-  // Broadcast to all Socket.IO clients listening to this team
+  // Broadcast roster to the room key clients actually join, plus legacy room/event for compatibility.
+  io.to(teamKey).emit(`team-roster-${teamKey}`, roster);
   io.to(`team_${teamNum}_${teamLetter}`).emit('team-roster-updated', { teamNum, teamLetter, roster });
 });
 
@@ -140,7 +304,114 @@ app.get('/api/team/:teamNum/:teamLetter/state', (req, res) => {
   const teamKey = `${teamNum}_${teamLetter}`;
   const state = teamStates.get(teamKey);
   console.log(`GET /api/team/${teamNum}/${teamLetter}/state → state exists: ${!!state}`);
-  res.json({ state });
+  res.json({ state: state ? filterTeamStateForRole(state, req.query.role) : null });
+});
+
+// API endpoint to record player submission for current round
+app.post('/api/team/:teamNum/:teamLetter/submit', async (req, res) => {
+  const { teamNum, teamLetter } = req.params;
+  const { role, order, playerId } = req.body;
+  
+  if (!role || order === undefined || !playerId) {
+    return res.status(400).json({ error: 'Missing role, order, or playerId' });
+  }
+  
+  const teamKey = `${teamNum}_${teamLetter}`;
+  let state = teamStates.get(teamKey) || { roleSubmissions: {}, currentRound: 0 };
+  
+  if (!state.roleSubmissions) state.roleSubmissions = {};
+  if (!state.dayOrders) state.dayOrders = {};
+
+  const parsedOrder = parseInt(order, 10);
+  
+  state.roleSubmissions[role] = {
+    playerId,
+    order: parsedOrder,
+    submittedAt: new Date().toISOString()
+  };
+  state.dayOrders[role] = parsedOrder;
+  state.lastSubmittedRole = role;
+  state.lastSubmittedAt = new Date().toISOString();
+  const requiredRoles = ['End Users', 'State/Local Hubs', 'Regional Hubs', 'Federal Stockpile'];
+  const currentDay = Number(state.currentDay || 0);
+  const allSubmitted = requiredRoles.every(requiredRole => state.dayOrders[requiredRole] !== undefined && state.dayOrders[requiredRole] !== null);
+  const shouldResolve = allSubmitted && state.lastResolvedDay !== currentDay;
+  if (shouldResolve) {
+    resolveTeamDay(state);
+    if (state.completed) {
+      state.completedAt = new Date().toISOString();
+      try {
+        await persistCompletedTeamResults(state);
+      } catch (err) {
+        console.error('Failed to persist completed team results:', err);
+        return res.status(500).json({ error: 'Failed to persist completed team results' });
+      }
+    }
+  }
+
+  teamStates.set(teamKey, state);
+  queueActiveStateWrite();
+  console.log(`✅ Team ${teamKey} - ${role} submitted order: ${order}.`);
+  res.json({ success: true, submittedRoles: Object.keys(state.roleSubmissions || {}) });
+  
+  // Broadcast submission update to all clients listening to this team.
+  const submissionPayload = {
+    teamNum,
+    teamLetter,
+    role,
+    submittedRoles: Object.keys(state.roleSubmissions || {})
+  };
+  io.to(teamKey).emit('team-submission-update', submissionPayload);
+  io.to(`team_${teamNum}_${teamLetter}`).emit('team-submission-update', submissionPayload);
+  broadcastTeamState(teamKey, state);
+});
+
+// API endpoint to get current submission status
+app.get('/api/team/:teamNum/:teamLetter/submissions', (req, res) => {
+  const { teamNum, teamLetter } = req.params;
+  const teamKey = `${teamNum}_${teamLetter}`;
+  const state = teamStates.get(teamKey) || {};
+  const submittedRoles = Object.keys(state.roleSubmissions || {});
+  res.json({ submittedRoles });
+});
+
+// API endpoint to advance turn one step in the role sequence
+app.post('/api/team/:teamNum/:teamLetter/advance-turn', (req, res) => {
+  const { teamNum, teamLetter } = req.params;
+  const { nextTurn, submittedRole, currentDay, totalDays } = req.body;
+  
+  const teamKey = `${teamNum}_${teamLetter}`;
+  let state = teamStates.get(teamKey) || {};
+  
+  // Each handoff clears submission markers so only the current step is considered active.
+  state.roleSubmissions = {};
+  state.turnStep = (state.turnStep || 0) + 1;
+  state.teamTurn = nextTurn || 'End Users';
+  state.lastSubmittedRole = submittedRole || state.lastSubmittedRole || null;
+  if (Number.isFinite(Number(currentDay))) {
+    state.currentDay = Number(currentDay);
+  }
+  if (Number.isFinite(Number(totalDays)) && Number(totalDays) > 0) {
+    state.totalDays = Number(totalDays);
+  }
+  state.roundAdvancedAt = new Date().toISOString();
+  
+  teamStates.set(teamKey, state);
+  console.log(`✅ Team ${teamKey} advanced to step ${state.turnStep}, turn: ${state.teamTurn}`);
+  res.json({ success: true, nextStep: state.turnStep, teamTurn: state.teamTurn });
+  
+  // Broadcast turn advancement to all clients.
+  const turnPayload = {
+    teamNum,
+    teamLetter,
+    nextStep: state.turnStep,
+    teamTurn: state.teamTurn,
+    submittedRole: state.lastSubmittedRole || null,
+    currentDay: Number(state.currentDay || 0),
+    totalDays: Number(state.totalDays || 0)
+  };
+  io.to(teamKey).emit('team-turn-advanced', turnPayload);
+  io.to(`team_${teamNum}_${teamLetter}`).emit('team-turn-advanced', turnPayload);
 });
 
 // API endpoint to save team state
@@ -221,6 +492,18 @@ app.post('/api/admin/trial-config', async (req, res) => {
   res.json({ success: true, config: safeConfig });
 });
 
+// Lets the admin panel show whether config will actually survive a redeploy
+// (Render Disk writable) instead of silently relying on it.
+app.get('/api/admin/persistence-status', async (_req, res) => {
+  const diskWritable = await checkDiskPersistence();
+  res.json({
+    diskWritable,
+    diskPath: ADMIN_CONFIG_DIR,
+    redisConfigured: !!REDIS_URL,
+    redisConnected: !!redisState
+  });
+});
+
 // API endpoint to get all results
 app.get('/api/results', (req, res) => {
   console.log(`GET /api/results → ${allResults.length} results`);
@@ -278,19 +561,71 @@ app.post('/api/results', async (req, res) => {
   io.emit('result-recorded', { result, totalResults: allResults.length });
 });
 
-// Admin endpoint to clear all team rosters and states (useful for tests)
-app.post('/api/admin/clear-teams', (req, res) => {
-  const clearedTeams = [];
+// Admin endpoint to clear all stored participant results
+app.post('/api/admin/clear-results', async (_req, res) => {
+  const cleared = allResults.length;
   try {
-    for (const key of Array.from(teamRosters.keys())) {
-      teamRosters.set(key, []);
-      // emit empty roster to the team room
-      io.to(`team_${key}`).emit(`team-roster-${key}`, []);
-      clearedTeams.push(key);
-    }
+    await writeResultsToDisk([]);
+  } catch (err) {
+    console.error('Failed to clear persisted results:', err);
+    return res.status(500).json({ error: 'Failed to clear result data' });
+  }
+  allResults.length = 0;
+  console.log(`✅ Cleared ${cleared} stored participant results`);
+  io.emit('results-cleared', { cleared });
+  res.json({ success: true, cleared });
+});
 
-    for (const key of Array.from(teamStates.keys())) {
+// API endpoint to get chat logs from all active rooms
+app.get('/api/chat-logs', (_req, res) => {
+  const logs = [];
+
+  rooms.forEach((roomState, roomKey) => {
+    const messages = Array.isArray(roomState?.teamChat) ? roomState.teamChat : [];
+    messages.forEach((msg) => {
+      logs.push({
+        roomKey,
+        teamName: roomKey,
+        sender: msg?.sender || '-',
+        text: msg?.text || '',
+        timestamp: msg?.timestamp || new Date().toISOString()
+      });
+    });
+  });
+
+  console.log(`GET /api/chat-logs → ${logs.length} messages`);
+  res.json({ logs });
+});
+
+// Admin endpoint to clear all team rosters and states (seat reset only)
+app.post('/api/admin/clear-teams', async (_req, res) => {
+  const keys = new Set([
+    ...Array.from(teamRosters.keys()),
+    ...Array.from(teamStates.keys()),
+    ...Array.from(rooms.keys())
+  ]);
+  const clearedTeams = [];
+
+  try {
+    for (const key of keys) {
+      await setTeamRoster(key, []);
       teamStates.delete(key);
+
+      const roomState = getRoomState(key);
+      roomState.teamState = null;
+      roomState.teamTurn = null;
+      roomState.teamChat = [];
+      await setRoomNode(key, 'teamState', null);
+      await setRoomNode(key, 'teamTurn', null);
+      await setRoomNode(key, 'teamChat', []);
+
+      // Broadcast reset to current room subscribers and legacy team_<key> listeners.
+      io.to(key).emit(`team-roster-${key}`, []);
+      io.to(key).emit(`room-node:${key}:teamState`, null);
+      io.to(key).emit('team-submission-update', { teamNum: null, teamLetter: null, role: null, submittedRoles: [] });
+      io.to(`team_${key}`).emit(`team-roster-${key}`, []);
+
+      clearedTeams.push(key);
     }
 
     console.log(`✅ Cleared ${clearedTeams.length} team rosters and team states`);
@@ -366,10 +701,17 @@ async function loadResultsFromDisk() {
 }
 
 async function writeResultsToDisk(results) {
-  await fs.mkdir(ADMIN_CONFIG_DIR, { recursive: true });
-  const tempFile = `${RESULTS_FILE}.tmp`;
-  await fs.writeFile(tempFile, JSON.stringify(results, null, 2), 'utf8');
-  await fs.rename(tempFile, RESULTS_FILE);
+  return queueResultsWrite(RESULTS_FILE, results);
+}
+
+function queueResultsWrite(filePath, results) {
+  resultWriteQueue = resultWriteQueue.then(async () => {
+    await fs.mkdir(ADMIN_CONFIG_DIR, { recursive: true });
+    const tempFile = `${filePath}.${Date.now()}.tmp`;
+    await fs.writeFile(tempFile, JSON.stringify(results, null, 2), 'utf8');
+    await fs.rename(tempFile, filePath);
+  });
+  return resultWriteQueue;
 }
 
 function queueActiveStateWrite() {
@@ -384,6 +726,17 @@ function queueActiveStateWrite() {
   }).catch(err => console.warn('Failed to persist active teams:', err.message));
 }
 
+async function loadActiveStateFromDisk() {
+  try {
+    const snapshot = JSON.parse(await fs.readFile(ACTIVE_TEAMS_FILE, 'utf8'));
+    if (Array.isArray(snapshot.teamStates)) snapshot.teamStates.forEach(([key, value]) => teamStates.set(key, value));
+    if (Array.isArray(snapshot.teamRosters)) snapshot.teamRosters.forEach(([key, value]) => teamRosters.set(key, value.map(member => ({ ...member, online: false }))));
+    if (Array.isArray(snapshot.rooms)) snapshot.rooms.forEach(([key, value]) => rooms.set(key, value));
+  } catch (err) {
+    if (err.code !== 'ENOENT') console.warn('Failed to load active teams:', err.message);
+  }
+}
+
 async function loadTrialResultsFromDisk() {
   try {
     const stored = JSON.parse(await fs.readFile(TRIAL_RESULTS_FILE, 'utf8'));
@@ -394,8 +747,23 @@ async function loadTrialResultsFromDisk() {
 }
 
 async function writeTrialResultsToDisk(results) {
-  await fs.mkdir(ADMIN_CONFIG_DIR, { recursive: true });
-  await fs.writeFile(TRIAL_RESULTS_FILE, JSON.stringify(results, null, 2), 'utf8');
+  return queueResultsWrite(TRIAL_RESULTS_FILE, results);
+}
+
+// Round-trips a small test file through the .persist mount so admins can verify
+// (via /api/admin/persistence-status) that the Render Disk actually survives redeploys.
+async function checkDiskPersistence() {
+  const testFile = path.join(ADMIN_CONFIG_DIR, '.write-test');
+  try {
+    await fs.mkdir(ADMIN_CONFIG_DIR, { recursive: true });
+    const token = String(Date.now());
+    await fs.writeFile(testFile, token, 'utf8');
+    const readBack = await fs.readFile(testFile, 'utf8');
+    return readBack === token;
+  } catch (err) {
+    console.warn('Disk persistence check failed:', err.message);
+    return false;
+  }
 }
 
 function getRoomState(roomKey) {
@@ -490,6 +858,7 @@ async function initRedis() {
 async function setRoomNode(roomKey, nodeName, payload) {
   const roomState = getRoomState(roomKey);
   roomState[nodeName] = payload;
+  queueActiveStateWrite();
 
   if (!redisState) return;
   await redisState.hset(getRoomRedisKey(roomKey), nodeName, JSON.stringify(payload));
@@ -516,6 +885,7 @@ async function setTeamRoster(roomKey, members) {
   const nextMembers = Array.isArray(members) ? members.map(member => ({ ...member })) : [];
   roster.length = 0;
   roster.push(...nextMembers);
+  queueActiveStateWrite();
 
   if (!redisState) return;
   await redisState.set(getTeamRosterRedisKey(roomKey), JSON.stringify(nextMembers));
@@ -636,15 +1006,6 @@ io.on('connection', (socket) => {
     if (nodeName === 'teamState' && payload && typeof payload === 'object') {
       outgoing = mergeTeamState(roomKey, payload);
 
-      const requiredRoles = ['End Users', 'State/Local Hubs', 'Regional Hubs', 'Federal Stockpile'];
-      const submittedRoles = outgoing.dayOrders || {};
-      const currentDay = Number(outgoing.currentDay || 0);
-      const allSubmitted = requiredRoles.every(role => submittedRoles[role] !== undefined && submittedRoles[role] !== null);
-
-      if (allSubmitted && outgoing.lastResolvedDay !== currentDay && outgoing.resolvingDay !== currentDay) {
-        outgoing.resolvingDay = currentDay;
-        socket.emit('resolve-team-day', { roomKey, day: currentDay });
-      }
     }
 
     try {
@@ -653,7 +1014,8 @@ io.on('connection', (socket) => {
       console.error('Failed to persist room node:', err);
     }
 
-    io.to(roomKey).emit(`room-node:${roomKey}:${nodeName}`, outgoing);
+    if (nodeName === 'teamState') broadcastTeamState(roomKey, outgoing);
+    else io.to(roomKey).emit(`room-node:${roomKey}:${nodeName}`, outgoing);
   });
 
   socket.on('get-room-node', async ({ roomKey, nodeName }) => {
@@ -668,7 +1030,8 @@ io.on('connection', (socket) => {
 
     if (value === undefined || value === null) return;
 
-    socket.emit(`room-node:${roomKey}:${nodeName}`, value);
+    const role = socket.data.playerData?.role;
+    socket.emit(`room-node:${roomKey}:${nodeName}`, nodeName === 'teamState' ? filterTeamStateForRole(value, role) : value);
   });
 
   socket.on('set-global-admin-config', async (payload) => {
@@ -706,13 +1069,17 @@ io.on('connection', (socket) => {
 initRedis()
   .then(async () => {
     try {
-      await getGlobalAdminConfig();
+      const config = await getGlobalAdminConfig();
+      console.log(`Admin config preload: ${config ? 'found persisted config' : 'no persisted config yet'}`);
       await loadResultsFromDisk();
       await loadTrialResultsFromDisk();
+      await loadActiveStateFromDisk();
       console.log(`Results preload: ${allResults.length} persisted record(s)`);
     } catch (err) {
       console.warn('Initial admin config preload failed:', err.message);
     }
+    const diskOk = await checkDiskPersistence();
+    console.log(`Disk persistence check (.persist mount): ${diskOk ? 'OK — survives redeploys' : 'FAILED — attach a Render Disk at ' + ADMIN_CONFIG_DIR}`);
   })
   .finally(() => {
     server.listen(PORT, () => {
