@@ -230,7 +230,9 @@ async function persistCompletedTeamResults(state) {
       participantId: member.playerId || `${state.roomKey}_${role.replace(/\s+/g, '_')}`,
       name: member.name || `${state.teamName || state.roomKey} - ${role}`,
       role,
-      teamNumber: state.roomKey?.replace(/^TRIAL/, '').split('_')[0] || '',
+      teamNumber: state.isTrial
+        ? state.roomKey?.split('_')[0] || ''
+        : state.roomKey?.split('_')[0] || '',
       treatmentGroup: state.roomKey?.split('_')[1] || '',
       totalDays: state.totalDays,
       inventoryCost: Number(inventoryCost.toFixed(2)),

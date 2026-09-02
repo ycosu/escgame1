@@ -2108,7 +2108,6 @@
             <div id="trialCompleteScreen" class="screen">
                 <div class="results-container" style="text-align:center;">
                     <h2>🧪 Trial Complete!</h2>
-                    <p style="font-size:1.1rem;color:#555;">You've finished the practice trial.</p>
                     <div class="button-row" style="justify-content:center;margin-top:20px;">
                         <button class="btn btn-primary" onclick="resetGame()">Close</button>
                     </div>
@@ -5379,34 +5378,13 @@
                 ? completedByPlayerId === game.participantId
                 : p.role === 'Federal Stockpile';
 
-            if (shouldPersistAllLogs) {
-                if (game.isTrial) {
-                    // Trial data is tagged and kept in its own local store only —
-                    // it never touches the server/real-game results.
-                    const storedTrial = getStoredTrialResults();
-                    results.forEach(record => storedTrial.push({ ...record, isTrial: true }));
-                    saveStoredTrialResults(storedTrial);
-                    results.forEach(record => postTrialResultToServer(record));
-
-                        async function postTrialResultToServer(resultRecord) {
-                            try {
-                                const base = (typeof getSocketUrl === 'function' ? (getSocketUrl() || '') : '');
-                                await fetch(`${base.replace(/\/$/, '')}/api/trial-results`, {
-                                    method: 'POST', headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({ ...resultRecord, isTrial: true })
-                                });
-                            } catch (err) {
-                                console.warn('Failed to post trial result to server:', err);
-                            }
-                        }
-                } else {
+            if (shouldPersistAllLogs && !game.isTrial) {
                     const stored = getStoredResults();
                     results.forEach(record => stored.push(record));
                     saveStoredResults(stored);
 
                     // Persist one record per role so the admin export can save every player's log.
                     results.forEach(record => postResultToServer(record));
-                }
             }
 
             if (game.isTrial) {
