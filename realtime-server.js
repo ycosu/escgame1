@@ -35,6 +35,23 @@ function mergeTeamState(teamKey, incoming) {
   const newDay = Number(incoming.currentDay ?? prevDay);
   if (prevDay > 0 && newDay < prevDay) return existing;
   const dayAdvanced = newDay > prevDay;
+  const incomingRoleStates = incoming.roleStates || {};
+  const roleStates = { ...(existing.roleStates || {}), ...incomingRoleStates };
+
+  Object.keys(existing.roleStates || {}).forEach(role => {
+    const existingRole = existing.roleStates[role] || {};
+    const incomingRole = incomingRoleStates[role];
+    if (!incomingRole || newDay > prevDay) return;
+    roleStates[role] = {
+      ...incomingRole,
+      inventoryCostTotal: existingRole.inventoryCostTotal,
+      backlogCostTotal: existingRole.backlogCostTotal,
+      shortagePenaltyCost: existingRole.shortagePenaltyCost,
+      totalCost: existingRole.totalCost,
+      lastRoundCost: existingRole.lastRoundCost,
+      history: existingRole.history
+    };
+  });
 
   const merged = {
     ...existing,
@@ -42,7 +59,7 @@ function mergeTeamState(teamKey, incoming) {
     roomKey: existing.roomKey || incoming.roomKey || teamKey,
     isTrial: String(teamKey).startsWith('TRIAL'),
     gameConfig: existing.gameConfig || getTeamConfigSnapshot(teamKey),
-    roleStates: { ...(existing.roleStates || {}), ...(incoming.roleStates || {}) },
+    roleStates,
     dayOrders: dayAdvanced
       ? (incoming.dayOrders || {})
       : { ...(existing.dayOrders || {}), ...(incoming.dayOrders || {}) },
@@ -113,7 +130,7 @@ function broadcastTeamState(roomKey, state) {
 
 function resolveTeamDay(state) {
   const day = Number(state.currentDay || 1);
-  const config = state.gameConfig || globalAdminConfig || {};
+  const config = state.gameConfig || getTeamConfigSnapshot(state.roomKey);
   const baseLag = Math.max(1, Number(config.lagTime || 1));
   const shocks = state.isTrial ? [] : (Array.isArray(config.shocks) ? config.shocks : []);
   const shockLag = shocks.filter(shock => Number(shock.round) === day).reduce((sum, shock) => sum + Math.max(0, Number(shock.lagDelta || 0)), 0);
