@@ -37,10 +37,14 @@ function mergeTeamState(teamKey, incoming) {
   const dayAdvanced = newDay > prevDay;
   const incomingRoleStates = incoming.roleStates || {};
   const roleStates = { ...(existing.roleStates || {}), ...incomingRoleStates };
+  const isTrial = String(teamKey).startsWith('TRIAL');
+  const serverConfig = getTeamConfigSnapshot(teamKey);
+  const canonicalConfig = existing.gameConfig
+    || (isTrial && globalTrialConfig ? serverConfig : incoming.gameConfig)
+    || serverConfig;
   const gameConfig = {
-    ...getTeamConfigSnapshot(teamKey),
-    ...(incoming.gameConfig || {}),
-    ...(existing.gameConfig || {})
+    ...serverConfig,
+    ...canonicalConfig
   };
 
   Object.keys(existing.roleStates || {}).forEach(role => {
@@ -62,7 +66,7 @@ function mergeTeamState(teamKey, incoming) {
     ...existing,
     ...incoming,
     roomKey: existing.roomKey || incoming.roomKey || teamKey,
-    isTrial: String(teamKey).startsWith('TRIAL'),
+    isTrial,
     gameConfig,
     roleStates,
     dayOrders: dayAdvanced
