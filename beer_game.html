@@ -3963,12 +3963,25 @@
             const headers = [
                 'timestamp', 'participantId', 'name', 'role', 'teamNumber', 'treatmentGroup',
                 'round', 'dayIndex', 'demand', 'order', 'inventory', 'backlog',
-                'inventoryCostDay', 'backlogCostDay', 'totalCostDay',
+                'inventoryCostDay', 'backlogCostDay', 'teamPenaltyDay', 'totalCostDay',
                 'effectiveLagTime', 'baseLagTime', 'endowment',
                 'inventoryPenaltyRate', 'backlogPenaltyRate', 'teamBacklogPenaltyRate', 'totalDays'
             ];
 
             const lines = [headers.map(sanitizeCSVValue).join(',')];
+            const endUserBacklogByRunDay = {};
+
+            results.forEach(stored => {
+                if (stored.role !== 'End Users') return;
+                const runKey = stored.timestamp || '__unknown__';
+                const history = Array.isArray(stored.history) ? stored.history : [];
+                history.forEach(entry => {
+                    const day = Number(entry.day);
+                    if (Number.isFinite(day) && Number(entry.backorders || 0) > 0) {
+                        endUserBacklogByRunDay[`${runKey}|${day}`] = true;
+                    }
+                });
+            });
 
             results.forEach(stored => {
                 const history = Array.isArray(stored.history) ? stored.history : [];
@@ -3987,7 +4000,10 @@
                     const effectiveLagTime = Math.max(1, Number(entry.lagTime || stored.lagTime || 1));
                     const inventoryCostDay = Math.max(0, inventory) * inventoryPenaltyRate;
                     const backlogCostDay = backlog * backlogPenaltyRate;
-                    const totalCostDay = inventoryCostDay + backlogCostDay;
+                    const teamPenaltyDay = endUserBacklogByRunDay[`${stored.timestamp || '__unknown__'}|${day}`]
+                        ? teamBacklogPenaltyRate
+                        : 0;
+                    const totalCostDay = inventoryCostDay + backlogCostDay + teamPenaltyDay;
 
                     const row = [
                         stored.timestamp || '',
@@ -4004,6 +4020,7 @@
                         backlog,
                         inventoryCostDay.toFixed(2),
                         backlogCostDay.toFixed(2),
+                        teamPenaltyDay.toFixed(2),
                         totalCostDay.toFixed(2),
                         effectiveLagTime,
                         Math.max(1, Number(stored.lagTime || 1)),
