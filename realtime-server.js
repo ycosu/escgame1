@@ -159,7 +159,7 @@ function resolveTeamDay(state) {
     const downstream = ROLES[index - 1];
     if (downstream) roleStates[downstream].incomingShipments.push({ quantity: update.shipped, dueDay: day + lag });
     if (upstream) roleStates[upstream].incomingOrders.push({ quantity: update.order, dueDay: day + lag });
-    else roleState.factoryOrders.push({ quantity: update.order, dueDay: day + lag });
+    else roleState.factoryOrders.push({ quantity: update.order, dueDay: day + (2 * lag) });
     const inventoryCost = update.inventory * Math.max(0, Number(config.inventoryPenaltyRate || 0));
     const backlogCost = update.backlog * Math.max(0, Number(config.backlogPenaltyRate || 0));
     const roundCost = inventoryCost + backlogCost + teamPenalty;
