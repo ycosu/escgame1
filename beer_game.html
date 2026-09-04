@@ -2099,8 +2099,8 @@
 
             <div id="endScreen" class="screen">
                 <div class="results-container" style="text-align:center;">
-                    <h2>This is the end of the game.</h2>
-                    <p style="font-size:1.1rem;color:#555;">Wait for instructions please.</p>
+                    <h2>Thank you. You have completed the game.</h2>
+                    <p style="font-size:1.1rem;color:#555;">Please wait for the facilitator's instructions.</p>
                 </div>
             </div>
 
@@ -3145,7 +3145,9 @@
                     playerId: game.participantId,
                     name: getPlayerDisplayName(),
                     role,
-                    teamName: game.teamName
+                    teamName: game.teamName,
+                    crtAnswer: game.crtAnswer,
+                    crtCorrect: game.crtCorrect
                 }
             });
 
@@ -3536,6 +3538,20 @@
                 if (!cfg || typeof cfg !== 'object') return;
                 saveTrialConfigToStorage(cfg);
                 if (game.gameStarted && game.isTrial) game.adminConfig = getTrialConfig();
+
+                const trialCfg = getTrialConfig();
+                const lagInput = document.getElementById('trialLagTime');
+                const initialInventoryInput = document.getElementById('trialInitialInventory');
+                const endowmentInput = document.getElementById('trialEndowment');
+                const inventoryPenaltyInput = document.getElementById('trialInventoryPenalty');
+                const backlogPenaltyInput = document.getElementById('trialBacklogPenalty');
+                const teamBacklogPenaltyInput = document.getElementById('trialTeamBacklogPenalty');
+                if (lagInput) lagInput.value = trialCfg.lagTime;
+                if (initialInventoryInput) initialInventoryInput.value = trialCfg.initialInventory;
+                if (endowmentInput) endowmentInput.value = trialCfg.endowment;
+                if (inventoryPenaltyInput) inventoryPenaltyInput.value = trialCfg.inventoryPenaltyRate;
+                if (backlogPenaltyInput) backlogPenaltyInput.value = trialCfg.backlogPenaltyRate;
+                if (teamBacklogPenaltyInput) teamBacklogPenaltyInput.value = trialCfg.teamBacklogPenaltyRate;
             });
 
             updateTurnControls();
@@ -3557,7 +3573,9 @@
                         body: JSON.stringify({
                             playerId: game.participantId,
                             name: getPlayerDisplayName(),
-                            role
+                            role,
+                            crtAnswer: game.crtAnswer,
+                            crtCorrect: game.crtCorrect
                         })
                     });
                     // break out if fetch succeeded (even if server returns non-200)
@@ -5343,7 +5361,7 @@
 
             const currentPlayerResult = results.find(r => r.role === p.role) || results[0];
             const completedByPlayerId = game.sharedTeamState?.completedByPlayerId;
-            const shouldPersistAllLogs = !game.sharedTeamState?.serverResultsSaved && (completedByPlayerId
+            const shouldPersistAllLogs = !game.socketConnected && !game.sharedTeamState?.serverResultsSaved && (completedByPlayerId
                 ? completedByPlayerId === game.participantId
                 : p.role === 'Federal Stockpile');
 
@@ -5406,8 +5424,8 @@
                     <td><strong>#${r.rank}</strong></td>
                     <td>${r.name}</td>
                     <td>${r.role}</td>
-                    <td>$${r.invCost.toFixed(2)}</td>
-                    <td>$${r.backCost.toFixed(2)}</td>
+                    <td>$${r.inventoryCost.toFixed(2)}</td>
+                    <td>$${r.backorderCost.toFixed(2)}</td>
                     <td><strong>$${r.totalCost.toFixed(2)}</strong></td>
                 </tr>
             `).join('');

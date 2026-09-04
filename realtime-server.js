@@ -58,7 +58,7 @@ function mergeTeamState(teamKey, incoming) {
     ...incoming,
     roomKey: existing.roomKey || incoming.roomKey || teamKey,
     isTrial: String(teamKey).startsWith('TRIAL'),
-    gameConfig: existing.gameConfig || getTeamConfigSnapshot(teamKey),
+    gameConfig: existing.gameConfig || incoming.gameConfig || getTeamConfigSnapshot(teamKey),
     roleStates,
     dayOrders: dayAdvanced
       ? (incoming.dayOrders || {})
@@ -226,6 +226,8 @@ async function persistCompletedTeamResults(state) {
       lagTime: config.lagTime,
       shockScheduleText: state.isTrial ? '' : (config.shockScheduleText || ''),
       endowment: Number(config.endowment || 0),
+      crtAnswer: member.crtAnswer ?? '',
+      crtCorrect: member.crtCorrect ?? '',
       isTrial: !!state.isTrial,
       history: Array.isArray(roleState.history) ? roleState.history : []
     };
@@ -272,7 +274,7 @@ app.get('/api/team/:teamNum/:teamLetter/roster', (req, res) => {
 // API endpoint to join team
 app.post('/api/team/:teamNum/:teamLetter/join', (req, res) => {
   const { teamNum, teamLetter } = req.params;
-  const { playerId, name, role } = req.body;
+  const { playerId, name, role, crtAnswer, crtCorrect } = req.body;
   
   if (!playerId || !name || !role) {
     return res.status(400).json({ error: 'Missing playerId, name, or role' });
@@ -294,12 +296,14 @@ app.post('/api/team/:teamNum/:teamLetter/join', (req, res) => {
   // Check if player already exists
   const existing = roster.find(m => m.playerId === playerId);
   if (existing) {
-    Object.assign(existing, { name, role, lastSeen: new Date().toISOString(), online: true });
+    Object.assign(existing, { name, role, crtAnswer, crtCorrect, lastSeen: new Date().toISOString(), online: true });
   } else {
     roster.push({
       playerId,
       name,
       role,
+      crtAnswer,
+      crtCorrect,
       joinedAt: new Date().toISOString(),
       lastSeen: new Date().toISOString(),
       online: true
