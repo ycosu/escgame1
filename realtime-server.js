@@ -83,7 +83,7 @@ function mergeTeamState(teamKey, incoming) {
   return merged;
 }
 
-const ROLES = ['End Users', 'State/Local Hubs', 'Regional Hubs', 'Federal Stockpile'];
+const ROLES = ['Shelters', 'State/Local Hubs', 'Regional Hubs', 'Federal Stockpile'];
 function isHighVisibilityRoom(roomKey) {
   const treatment = String(roomKey || '').split('_').pop().toUpperCase();
   return treatment === 'A' || treatment === 'B';
@@ -179,7 +179,7 @@ function resolveTeamDay(state) {
     updates[role] = { roleState, shipments, information, production, incomingDemand, shipped, inventory: available - shipped, backlog: totalDemand - shipped, order: Number(state.dayOrders[role] || 0) };
   });
 
-  const teamPenalty = updates['End Users'].backlog > 0 ? Math.max(0, Number(config.teamBacklogPenaltyRate || 0)) : 0;
+  const teamPenalty = updates.Shelters.backlog > 0 ? Math.max(0, Number(config.teamBacklogPenaltyRate || 0)) : 0;
   // Clear every role's processed arrivals before scheduling new ones. Doing this
   // inside the scheduling loop would overwrite orders queued for a later role.
   ROLES.forEach(role => {
@@ -374,7 +374,7 @@ app.post('/api/team/:teamNum/:teamLetter/submit', async (req, res) => {
   state.dayOrders[role] = parsedOrder;
   state.lastSubmittedRole = role;
   state.lastSubmittedAt = new Date().toISOString();
-  const requiredRoles = ['End Users', 'State/Local Hubs', 'Regional Hubs', 'Federal Stockpile'];
+  const requiredRoles = ['Shelters', 'State/Local Hubs', 'Regional Hubs', 'Federal Stockpile'];
   const currentDay = Number(state.currentDay || 0);
   const allSubmitted = requiredRoles.every(requiredRole => state.dayOrders[requiredRole] !== undefined && state.dayOrders[requiredRole] !== null);
   const shouldResolve = allSubmitted && state.lastResolvedDay !== currentDay;
@@ -428,7 +428,7 @@ app.post('/api/team/:teamNum/:teamLetter/advance-turn', (req, res) => {
   // Each handoff clears submission markers so only the current step is considered active.
   state.roleSubmissions = {};
   state.turnStep = (state.turnStep || 0) + 1;
-  state.teamTurn = nextTurn || 'End Users';
+  state.teamTurn = nextTurn || 'Shelters';
   state.lastSubmittedRole = submittedRole || state.lastSubmittedRole || null;
   if (Number.isFinite(Number(currentDay))) {
     state.currentDay = Number(currentDay);

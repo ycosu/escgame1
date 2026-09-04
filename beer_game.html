@@ -1715,7 +1715,7 @@
 
                                 <g filter="url(#aiGlow)">
                                     <rect x="855" y="205" width="210" height="98" rx="18" fill="#fff1f1" stroke="#a65f5f" stroke-width="2.2"/>
-                                    <text x="960" y="239" text-anchor="middle" fill="#7f2f2f" font-size="18" font-weight="800">End Users</text>
+                                    <text x="960" y="239" text-anchor="middle" fill="#7f2f2f" font-size="18" font-weight="800">Shelters</text>
                                     <text x="960" y="263" text-anchor="middle" fill="#7f2f2f" font-size="15" font-weight="600">Demand Shock Zone</text>
                                 </g>
 
@@ -1797,7 +1797,7 @@
                                 </g>
                             </svg>
 
-                            <svg class="scene-svg" viewBox="0 0 1200 360" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Village supply chain road with flooding concentrated at End Users">
+                            <svg class="scene-svg" viewBox="0 0 1200 360" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Village supply chain road with flooding concentrated at shelters">
                                 <defs>
                                     <filter id="sceneShadow" x="-20%" y="-20%" width="140%" height="140%">
                                         <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#000000" flood-opacity="0.15"/>
@@ -1837,7 +1837,7 @@
                                 <rect x="0" y="165" width="1200" height="195" fill="#9fcb7b"/>
                                 <path d="M 0 195 Q 180 182 360 194 T 720 192 T 1200 198 L 1200 360 L 0 360 Z" fill="#8bbd67" opacity="0.9"/>
 
-                                <!-- Flooding concentrated at End Users area (single flood basin) -->
+                                <!-- Flooding concentrated at the shelters area (single flood basin) -->
                                 <g opacity="0.97">
                                     <path d="M 860 168 Q 935 145 1018 160 T 1200 205 L 1200 360 L 860 360 Z" fill="url(#waterGrad)"/>
                                     <path d="M 872 183 Q 943 165 1018 179 T 1200 220 L 1200 243 Q 1138 229 1062 235 T 872 208 Z" fill="rgba(255,255,255,0.25)"/>
@@ -1925,7 +1925,7 @@
                                     <rect x="715" y="155" width="100" height="10" fill="#8b7355" stroke="#5c4a3a" stroke-width="1.5"/>
                                 </g>
 
-                                <!-- Mini village - houses for End Users -->
+                                <!-- Mini village - houses served by shelters -->
                                 <g filter="url(#sceneShadow)">
                                     <!-- House 1 (left) -->
                                     <rect x="895" y="105" width="50" height="50" fill="#f9e5d3" stroke="#8c6b4f" stroke-width="2" rx="3"/>
@@ -2026,7 +2026,7 @@
                             <label for="playerRole">Your Role *</label>
                             <select id="playerRole" required>
                                 <option value="">Select your role...</option>
-                                <option value="End Users">👥 End Users</option>
+                                <option value="Shelters">🏠 Shelters</option>
                                 <option value="State/Local Hubs">🏛️ State/Local Hubs</option>
                                 <option value="Regional Hubs">🗺️ Regional Hubs</option>
                                 <option value="Federal Stockpile">🏢 Federal Stockpile</option>
@@ -2675,13 +2675,13 @@
         }
 
         function calculateTeamPenaltyCost(currentPlayer) {
-            // Group penalty applies if the End Users tier has any backlog (backorders).
-            // If End Users have any backlog > 0, apply the configured team backlog penalty for the day.
+            // Group penalty applies if the Shelters tier has any backlog (backorders).
+            // If Shelters have any backlog > 0, apply the configured team backlog penalty for the day.
             try {
                 const roleStates = game.sharedTeamState?.roleStates || {};
-                const endUserState = roleStates['End Users'];
+                const endUserState = roleStates['Shelters'];
                 const endUserRemoteBacklog = Number(endUserState?.backorders);
-                const localEndUserBacklog = currentPlayer?.role === 'End Users' ? Number(currentPlayer.backorders) : NaN;
+                const localEndUserBacklog = currentPlayer?.role === 'Shelters' ? Number(currentPlayer.backorders) : NaN;
                 const endUserHasBacklog = Number.isFinite(endUserRemoteBacklog)
                     ? endUserRemoteBacklog > 0
                     : (Number.isFinite(localEndUserBacklog) ? localEndUserBacklog > 0 : false);
@@ -2848,7 +2848,7 @@
         }
 
         function getSequentialRoleOrder() {
-            return ['End Users', 'State/Local Hubs', 'Regional Hubs', 'Federal Stockpile'];
+            return ['Shelters', 'State/Local Hubs', 'Regional Hubs', 'Federal Stockpile'];
         }
 
         function getRoleOrderIndex(role) {
@@ -4029,7 +4029,7 @@
             }
 
             const roleColumnDefs = [
-                { role: 'End Users', prefix: 'endUsers' },
+                { role: 'Shelters', prefix: 'shelters' },
                 { role: 'State/Local Hubs', prefix: 'stateLocal' },
                 { role: 'Regional Hubs', prefix: 'regional' },
                 { role: 'Federal Stockpile', prefix: 'federal' }
@@ -4064,7 +4064,7 @@
                     dayState.roleStatus[role] = {
                         demand: entry.demand ?? '', order: entry.order ?? '', inventory: entry.inventory ?? '', backorders: entry.backorders ?? '', arrived: entry.arrived ?? '', shipped: entry.shipped ?? ''
                     };
-                    if (role === 'End Users' && Number(entry.backorders || 0) > 0) dayState.endUserBacklog = true;
+                    if (role === 'Shelters' && Number(entry.backorders || 0) > 0) dayState.endUserBacklog = true;
                     runDayAgg[runKey][day] = dayState;
                 });
             });
@@ -4168,7 +4168,7 @@
                 return;
             }
             const roleColumnDefs = [
-                { role: 'End Users', prefix: 'endUsers' },
+                { role: 'Shelters', prefix: 'shelters' },
                 { role: 'State/Local Hubs', prefix: 'stateLocal' },
                 { role: 'Regional Hubs', prefix: 'regional' },
                 { role: 'Federal Stockpile', prefix: 'federal' }
@@ -4243,7 +4243,7 @@
                             shipped: h.shipped ?? ''
                         };
 
-                        if (h.role === 'End Users' && Number(h.backorders) > 0) dayMap[d].endUserBacklog = true;
+                        if (h.role === 'Shelters' && Number(h.backorders) > 0) dayMap[d].endUserBacklog = true;
                     });
                 });
                 runDayAgg[ts] = dayMap;
@@ -4381,13 +4381,13 @@
                 return;
             }
 
-            // Build a map of day -> whether End Users had backlog > 0
+            // Build a map of day -> whether Shelters had backlog > 0
             const endUserBacklogByDay = {};
             history.forEach(h => {
                 const d = Number(h.day);
                 if (!Number.isFinite(d)) return;
                 if (!endUserBacklogByDay[d]) endUserBacklogByDay[d] = false;
-                if (h.role === 'End Users' && Number(h.backorders) > 0) endUserBacklogByDay[d] = true;
+                if (h.role === 'Shelters' && Number(h.backorders) > 0) endUserBacklogByDay[d] = true;
             });
 
             const roleEntries = history
@@ -4814,7 +4814,7 @@
 
         function updateSupplyChain() {
             const p = game.players.player;
-            const roles = ['End Users', 'State/Local Hubs', 'Regional Hubs', 'Federal Stockpile'];
+            const roles = ['Shelters', 'State/Local Hubs', 'Regional Hubs', 'Federal Stockpile'];
             const emojis = ['👥', '🏛️', '🗺️', '🏢'];
             const roleStates = game.sharedTeamState?.roleStates || {};
             const totalCost = getSafePlayerTotalCost(p);
@@ -4879,7 +4879,7 @@
             const shared = game.sharedTeamState || {};
             const roleStates = shared.roleStates || {};
             const roles = getSequentialRoleOrder();
-            const endUserState = roleStates['End Users'] || {};
+            const endUserState = roleStates['Shelters'] || {};
             const shortageDays = Number(endUserState.shortageDays || 0);
 
             let latestHistory = [];
@@ -5048,15 +5048,15 @@
             let msg = '';
             const dayNumber = getCurrentGameDay();
 
-            if (p.role === 'End Users') {
+            if (p.role === 'Shelters') {
                 const demandToday = getExternalDemand(dayNumber);
                 msg += `<div class="message-box info">Demand today: ${demandToday}</div>`;
             }
 
-            // Realistic bullwhip: only End Users (the start of demand) feel the
+            // Realistic bullwhip: only Shelters (the start of demand) feel the
             // disaster directly. Upstream tiers must infer the surge from incoming orders.
             const disasterWarning = getDisasterWarning(dayNumber);
-            if (disasterWarning && p.role === 'End Users') {
+            if (disasterWarning && p.role === 'Shelters') {
                 msg += '<div class="message-box warning">' + disasterWarning + '</div>';
             }
 
@@ -5096,10 +5096,10 @@
                 const startingBacklog = Math.max(0, Number(state.backorders || 0));
                 const orderPlaced = Math.max(0, Number(state.pendingOrder ?? state.order ?? 0));
                 // Classic Beer Game demand flow:
-                // End Users face external customer demand (4 normally, 8 on disaster days).
+                // Shelters face external demand (4 normally, 8 on disaster days).
                 // Every upstream tier faces the demand placed by its downstream customer,
                 // which arrives through the order lag queue (incomingOrders).
-                const incomingOrder = (role === 'End Users')
+                const incomingOrder = (role === 'Shelters')
                     ? getExternalDemand(getCurrentGameDay())
                     : Math.max(0, Number(orders.received || 0));
                 const totalDemand = incomingOrder + startingBacklog;
@@ -5120,7 +5120,7 @@
                 };
             });
 
-            const endUserBacklog = Number(updates['End Users']?.endingBacklog || 0);
+            const endUserBacklog = Number(updates['Shelters']?.endingBacklog || 0);
             const endUserShortageToday = endUserBacklog > 0;
             const teamPenalty = endUserShortageToday ? rates.teamBacklogPenalty : 0;
 
