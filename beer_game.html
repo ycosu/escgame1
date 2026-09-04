@@ -1534,9 +1534,70 @@
         .modal-buttons .btn {
             flex: 1;
         }
+
+        .site-lock {
+            position: fixed;
+            inset: 0;
+            z-index: 2000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+            background: rgba(20, 42, 34, 0.86);
+        }
+
+        .site-lock.unlocked {
+            display: none;
+        }
+
+        .site-lock-box {
+            width: min(100%, 420px);
+            padding: 38px;
+            border-radius: 16px;
+            background: #ffffff;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.32);
+            text-align: center;
+        }
+
+        .site-lock-box h2 {
+            margin-bottom: 12px;
+            color: #1e3f34;
+        }
+
+        .site-lock-box p {
+            margin-bottom: 20px;
+            color: #5b6763;
+        }
+
+        .site-lock-box input {
+            width: 100%;
+            margin-bottom: 12px;
+            padding: 13px;
+            border: 2px solid #ccd7d1;
+            border-radius: 8px;
+            font-size: 1.1em;
+        }
+
+        .site-lock-error {
+            min-height: 1.2em;
+            margin-top: 12px;
+            color: #a13232;
+            font-weight: 600;
+        }
     </style>
 </head>
 <body>
+    <div id="siteLock" class="site-lock" role="dialog" aria-modal="true" aria-labelledby="siteLockTitle">
+        <div class="site-lock-box">
+            <h2 id="siteLockTitle">Emergency Supply Chain Game</h2>
+            <p>Enter the session password to continue.</p>
+            <form id="siteLockForm">
+                <input id="siteLockPassword" type="password" inputmode="numeric" autocomplete="current-password" aria-label="Session password" required>
+                <button class="btn btn-primary" type="submit">Unlock</button>
+            </form>
+            <div id="siteLockError" class="site-lock-error" role="alert"></div>
+        </div>
+    </div>
     <div class="container">
         <!-- Header -->
         <div class="header">
@@ -2301,6 +2362,8 @@
         const DEFAULT_BACKLOG_PENALTY = 0.3;
         const DEFAULT_TEAM_BACKLOG_PENALTY = 0.5;
         const ADMIN_PASSWORD = 'eesun2539';
+        const SITE_PASSWORD = '1908';
+        const SITE_UNLOCK_KEY = 'dsc_site_unlocked_v1';
         const ADMIN_CONFIG_KEY = 'dsc_admin_config_v1';
         const TRIAL_ADMIN_CONFIG_KEY = 'dsc_trial_admin_config_v1';
         const RESULTS_KEY = 'dsc_participant_results_v1';
@@ -5737,8 +5800,36 @@
             }
         }
 
+        function initializeSiteLock() {
+            const lock = document.getElementById('siteLock');
+            const form = document.getElementById('siteLockForm');
+            const password = document.getElementById('siteLockPassword');
+            const error = document.getElementById('siteLockError');
+            if (!lock || !form || !password || !error) return;
+
+            if (sessionStorage.getItem(SITE_UNLOCK_KEY) === 'true') {
+                lock.classList.add('unlocked');
+                return;
+            }
+
+            form.addEventListener('submit', (event) => {
+                event.preventDefault();
+                if (password.value === SITE_PASSWORD) {
+                    sessionStorage.setItem(SITE_UNLOCK_KEY, 'true');
+                    lock.classList.add('unlocked');
+                    error.textContent = '';
+                    return;
+                }
+                error.textContent = 'Incorrect password. Please try again.';
+                password.value = '';
+                password.focus();
+            });
+            password.focus();
+        }
+
         // Initialize
         document.addEventListener('DOMContentLoaded', () => {
+            initializeSiteLock();
             connectRealtimeIfNeeded();
             void syncGlobalAdminConfig();
             adjustStartHeroToImage();
