@@ -4815,7 +4815,7 @@
         function updateSupplyChain() {
             const p = game.players.player;
             const roles = ['Shelters', 'State/Local Hubs', 'Regional Hubs', 'Federal Stockpile'];
-            const emojis = ['👥', '🏛️', '🗺️', '🏢'];
+            const emojis = ['📍', '🏛️', '🏢', '📦'];
             const roleStates = game.sharedTeamState?.roleStates || {};
             const totalCost = getSafePlayerTotalCost(p);
             const highVisibility = isHighVisibilityTeam();
@@ -4983,7 +4983,7 @@
             if (!panel) return;
 
             const roles = getSequentialRoleOrder();
-            const emojis = ['👥', '🏛️', '🗺️', '🏢'];
+            const emojis = ['📍', '🏛️', '🏢', '📦'];
             const currentTurnRole = getActiveTeamTurnRole();
             const highVisibility = isHighVisibilityTeam();
             const roleStates = game.sharedTeamState?.roleStates || {};
