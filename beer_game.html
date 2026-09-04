@@ -3149,7 +3149,9 @@
                     playerId: game.participantId,
                     name: getPlayerDisplayName(),
                     role,
-                    teamName: game.teamName
+                    teamName: game.teamName,
+                    crtAnswer: game.crtAnswer,
+                    crtCorrect: game.crtCorrect
                 }
             });
 
@@ -3537,7 +3539,9 @@
                         body: JSON.stringify({
                             playerId: game.participantId,
                             name: getPlayerDisplayName(),
-                            role
+                            role,
+                            crtAnswer: game.crtAnswer,
+                            crtCorrect: game.crtCorrect
                         })
                     });
                     // break out if fetch succeeded (even if server returns non-200)
@@ -5427,9 +5431,9 @@
 
             const currentPlayerResult = results.find(r => r.role === p.role) || results[0];
             const completedByPlayerId = game.sharedTeamState?.completedByPlayerId;
-            const shouldPersistAllLogs = completedByPlayerId
+            const shouldPersistAllLogs = !game.socketConnected && (completedByPlayerId
                 ? completedByPlayerId === game.participantId
-                : p.role === 'Federal Stockpile';
+                : p.role === 'Federal Stockpile');
 
             if (shouldPersistAllLogs && !game.isTrial) {
                     const stored = getStoredResults();
