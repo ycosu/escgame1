@@ -2284,7 +2284,6 @@
                                 <button class="btn btn-secondary btn-small" onclick="refreshAdminResults()">Refresh Results</button>
                                 <button class="btn btn-secondary btn-small" onclick="clearAllResults()">Clear Results</button>
                                 <button class="btn btn-primary btn-small" onclick="downloadResultsCSV()">Download CSV</button>
-                                <button class="btn btn-secondary btn-small" onclick="downloadParticipantRoundCSV()">Download Per-Round CSV (Participant)</button>
                                 <button class="btn btn-secondary btn-small" onclick="downloadChatLogsCSV()">💬 Chat Logs</button>
                             </div>
                         </div>
@@ -3021,7 +3020,7 @@
             // resolved. Reaching Day 5 means it is ready for orders, not finished.
             const finalDay = Number(game.sharedTeamState?.gameConfig?.totalDays || game.sharedTeamState?.totalDays || game.totalDays);
             if (game.gameStarted && !game.ended && Number(game.sharedTeamState?.lastResolvedDay) >= finalDay) {
-                endGame();
+                showCompletionScreen();
             }
         }
 
@@ -3133,6 +3132,13 @@
                         ? (incoming.dayOrders || {})
                         : { ...(existing.dayOrders || {}), ...(incoming.dayOrders || {}) }
                 };
+                // The server resolves a day only after all four roles submit.
+                // Its completed flag is the authoritative signal to end every
+                // player's game, regardless of local display state.
+                if (game.gameStarted && incoming.completed && !game.ended) {
+                    showCompletionScreen();
+                    return;
+                }
                 // Reset submission lock when day advances or turn changes, so players can submit for the new turn.
                 if (dayAdvanced || turnChanged) {
                     game.submittedThisRound = false;
@@ -5553,6 +5559,18 @@
 
             renderDebugTimeline('resultsTimelinePanel');
 
+            showScreen('endScreen');
+        }
+
+        function showCompletionScreen() {
+            if (game.ended) return;
+            game.ended = true;
+            stopSubmissionSync();
+            stopTeamStateSync();
+            if (game.isTrial) {
+                showScreen('trialCompleteScreen');
+                return;
+            }
             showScreen('endScreen');
         }
 
