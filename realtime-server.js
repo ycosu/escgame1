@@ -147,6 +147,9 @@ function broadcastTeamState(roomKey, state) {
 function resolveTeamDay(state) {
   const day = Number(state.currentDay || 1);
   const config = state.gameConfig || getTeamConfigSnapshot(state.roomKey);
+  const finalDay = Math.max(1, Number(config.totalDays || state.totalDays || 20));
+  state.gameConfig = { ...config, totalDays: finalDay };
+  state.totalDays = finalDay;
   const baseLag = Math.max(1, Number(config.lagTime || 1));
   const shocks = state.isTrial ? [] : (Array.isArray(config.shocks) ? config.shocks : []);
   const shockLag = shocks.filter(shock => Number(shock.round) === day).reduce((sum, shock) => sum + Math.max(0, Number(shock.lagDelta || 0)), 0);
@@ -209,7 +212,7 @@ function resolveTeamDay(state) {
   state.dayOrders = {};
   state.roleSubmissions = {};
   state.resolvingDay = null;
-  if (day < Number(state.totalDays || 20)) state.currentDay = day + 1;
+  if (day < finalDay) state.currentDay = day + 1;
   else state.completed = true;
   return state;
 }

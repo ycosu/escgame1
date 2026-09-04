@@ -2924,7 +2924,10 @@
         function syncCurrentPlayerFromSharedState() {
             if (game.sharedTeamState && typeof game.sharedTeamState === 'object') {
                 const sharedDay = Number(game.sharedTeamState.currentDay);
-                const sharedTotalDays = Number(game.sharedTeamState.totalDays);
+                const configuredTotalDays = Number(game.sharedTeamState.gameConfig?.totalDays);
+                const sharedTotalDays = Number.isFinite(configuredTotalDays) && configuredTotalDays > 0
+                    ? configuredTotalDays
+                    : Number(game.sharedTeamState.totalDays);
                 if (Number.isFinite(sharedDay)) game.currentDay = sharedDay;
                 if (Number.isFinite(sharedTotalDays) && sharedTotalDays > 0) game.totalDays = sharedTotalDays;
                 // Keep the trial banner/logic consistent across every teammate.
@@ -2953,7 +2956,8 @@
 
             // End the game for every role only after the final displayed day has
             // resolved. Reaching Day 5 means it is ready for orders, not finished.
-            if (game.gameStarted && !game.ended && Number(game.sharedTeamState?.lastResolvedDay) >= Number(game.totalDays)) {
+            const finalDay = Number(game.sharedTeamState?.gameConfig?.totalDays || game.sharedTeamState?.totalDays || game.totalDays);
+            if (game.gameStarted && !game.ended && Number(game.sharedTeamState?.lastResolvedDay) >= finalDay) {
                 endGame();
             }
         }
