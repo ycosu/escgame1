@@ -2623,10 +2623,10 @@
             return `"${txt.replace(/"/g, '""')}"`;
         }
 
-        function getActiveLeadTime() {
+        function getActiveLeadTime(dayNumber) {
             const baseLag = Math.max(1, Number(game.adminConfig?.lagTime ?? defaultAdminConfig.lagTime));
-            const dayNumber = game.currentDay;
-            const shockLag = getActiveShocks(dayNumber).reduce((sum, s) => sum + Math.max(0, Number(s?.lagDelta || 0)), 0);
+            const day = Number(dayNumber !== undefined ? dayNumber : (game.currentDay || 1));
+            const shockLag = getActiveShocks(day).reduce((sum, s) => sum + Math.max(0, Number(s?.lagDelta || 0)), 0);
             return Math.max(1, baseLag + shockLag);
         }
 
@@ -2634,7 +2634,8 @@
             if (game.isTrial) return [];
             const cfg = game.adminConfig || getAdminConfig();
             const shocks = Array.isArray(cfg.shocks) ? cfg.shocks : [];
-            return shocks.filter(s => dayNumber === s.round);
+            const day = Number(dayNumber !== undefined ? dayNumber : (game.currentDay || 1));
+            return shocks.filter(s => Number(s.round) === day);
         }
 
         function getCurrentGameDay() {
@@ -5172,7 +5173,12 @@
                     upstreamState.incomingOrders.push({ quantity: update.orderPlaced, dueDay: getCurrentGameDay() + lagTime });
                 } else {
                     // The factory receives the Stockpile's order before producing a shipment.
-                    state.factoryOrders.push({ quantity: update.orderPlaced, dueDay: getCurrentGameDay() + (2 * lagTime) });
+                    const currentDay = getCurrentGameDay();
+                    const leg1Delay = lagTime;
+                    const factoryReceiptDay = currentDay + leg1Delay;
+                    const leg2Delay = getActiveLeadTime(factoryReceiptDay);
+                    const arrivalDay = factoryReceiptDay + leg2Delay;
+                    state.factoryOrders.push({ quantity: update.orderPlaced, dueDay: arrivalDay });
                 }
 
                 const inventoryPenalty = state.inventory * rates.inventoryPenalty;

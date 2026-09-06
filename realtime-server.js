@@ -152,8 +152,11 @@ function resolveTeamDay(state) {
   state.totalDays = finalDay;
   const baseLag = Math.max(1, Number(config.lagTime || 1));
   const shocks = state.isTrial ? [] : (Array.isArray(config.shocks) ? config.shocks : []);
-  const shockLag = shocks.filter(shock => Number(shock.round) === day).reduce((sum, shock) => sum + Math.max(0, Number(shock.lagDelta || 0)), 0);
-  const lag = baseLag + shockLag;
+  const getEffectiveLag = (dayNum) => {
+    const shockLag = shocks.filter(shock => Number(shock.round) === Number(dayNum)).reduce((sum, shock) => sum + Math.max(0, Number(shock.lagDelta || 0)), 0);
+    return Math.max(1, baseLag + shockLag);
+  };
+  const lag = getEffectiveLag(day);
   const roleStates = state.roleStates || {};
   const updates = {};
 
@@ -195,7 +198,13 @@ function resolveTeamDay(state) {
     const downstream = ROLES[index - 1];
     if (downstream) roleStates[downstream].incomingShipments.push({ quantity: update.shipped, dueDay: day + lag });
     if (upstream) roleStates[upstream].incomingOrders.push({ quantity: update.order, dueDay: day + lag });
-    else roleState.factoryOrders.push({ quantity: update.order, dueDay: day + (2 * lag) });
+    else {
+      const leg1Delay = lag;
+      const factoryReceiptDay = day + leg1Delay;
+      const leg2Delay = getEffectiveLag(factoryReceiptDay);
+      const arrivalDay = factoryReceiptDay + leg2Delay;
+      roleState.factoryOrders.push({ quantity: update.order, dueDay: arrivalDay });
+    }
     const inventoryCost = update.inventory * Math.max(0, Number(config.inventoryPenaltyRate || 0));
     const backlogCost = update.backlog * Math.max(0, Number(config.backlogPenaltyRate || 0));
     const roundCost = inventoryCost + backlogCost + teamPenalty;
