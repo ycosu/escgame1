@@ -195,7 +195,8 @@ function buildTeam(teamNumber, treatmentGroup, seedBase) {
 
     const teamInventoryCostDay = teamTotalInventory * settings.inventoryPenaltyRate;
     const teamBacklogCostDay = teamTotalBacklog * settings.backlogPenaltyRate;
-    const teamTotalCostDay = teamInventoryCostDay + teamBacklogCostDay + teamPenaltyDay;
+    const teamTotalPenaltyCostDay = 4 * teamPenaltyDay;
+    const teamTotalCostDay = teamInventoryCostDay + teamBacklogCostDay + teamTotalPenaltyCostDay;
 
     participants.forEach(p => {
       const s = states[p.role];
@@ -226,6 +227,7 @@ function buildTeam(teamNumber, treatmentGroup, seedBase) {
         teamTotalBacklog,
         teamInventoryCostDay: teamInventoryCostDay.toFixed(2),
         teamBacklogCostDay: teamBacklogCostDay.toFixed(2),
+        teamPenaltyDay: teamTotalPenaltyCostDay.toFixed(2),
         teamTotalCostDay: teamTotalCostDay.toFixed(2),
         lagTime,
         shockScheduleText: settings.shockScheduleText,

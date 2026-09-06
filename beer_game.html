@@ -4117,7 +4117,8 @@
                     const budgetEndDay = Math.max(0, endowment - cumulativeCost);
                     const teamInventoryCostDay = teamAgg.totalInventory * inventoryPenaltyRate;
                     const teamBacklogCostDay = teamAgg.totalBacklog * backlogPenaltyRate;
-                    const teamTotalCostDay = teamInventoryCostDay + teamBacklogCostDay + teamPenaltyDay;
+                    const teamTotalPenaltyCostDay = 4 * teamPenaltyDay;
+                    const teamTotalCostDay = teamInventoryCostDay + teamBacklogCostDay + teamTotalPenaltyCostDay;
 
                     const row = [
                         stored.timestamp || '',
@@ -4145,7 +4146,7 @@
                         teamAgg.totalBacklog,
                         teamInventoryCostDay.toFixed(2),
                         teamBacklogCostDay.toFixed(2),
-                        teamPenaltyDay.toFixed(2),
+                        teamTotalPenaltyCostDay.toFixed(2),
                         teamTotalCostDay.toFixed(2),
                         effectiveLagTime,
                         Math.max(1, Number(stored.lagTime || 1)),
@@ -4297,7 +4298,8 @@
                     const teamInventoryCostDay = teamAgg.totalInventory * inventoryPenaltyRate;
                     const teamBacklogCostDay = teamAgg.totalBacklog * backlogPenaltyRate;
                     const teamPenaltyDay = teamAgg.endUserBacklog ? teamBacklogPenaltyRate : 0;
-                    const teamTotalCostDay = teamInventoryCostDay + teamBacklogCostDay + teamPenaltyDay;
+                    const teamTotalPenaltyCostDay = 4 * teamPenaltyDay;
+                    const teamTotalCostDay = teamInventoryCostDay + teamBacklogCostDay + teamTotalPenaltyCostDay;
                     const totalCostDay = inventoryCostDay + backlogCostDay + teamPenaltyDay;
                     const budgetStartDay = Math.max(0, endowment - cumulativeCost);
                     cumulativeCost = Number((cumulativeCost + totalCostDay).toFixed(2));
@@ -4329,7 +4331,7 @@
                         teamAgg.totalBacklog,
                         teamInventoryCostDay.toFixed(2),
                         teamBacklogCostDay.toFixed(2),
-                        teamPenaltyDay.toFixed(2),
+                        teamTotalPenaltyCostDay.toFixed(2),
                         teamTotalCostDay.toFixed(2),
                         effectiveLagTime,
                         Math.max(1, Number(stored.lagTime || 1)),
