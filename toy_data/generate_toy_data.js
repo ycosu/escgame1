@@ -17,6 +17,7 @@ const settings = {
   inventoryPenaltyRate: 0.1,
   backlogPenaltyRate: 0.3,
   teamBacklogPenaltyRate: 0.5,
+  replenishmentShockMultiplier: 3,
   shocks: [
     { round: 3, lagDelta: 1 },
     { round: 4, lagDelta: 2 },
@@ -109,7 +110,7 @@ function buildTeam(teamNumber, treatmentGroup, seedBase) {
 
     roles.forEach(role => {
       const s = states[role];
-      s.incomingOrders = normalizeQueue(s.incomingOrders, lagTime, 0);
+      s.incomingOrders = normalizeQueue(s.incomingOrders, settings.baseLag, 0);
       s.incomingShipments = normalizeQueue(s.incomingShipments, lagTime, 0);
 
       const arrived = Number(s.incomingShipments.shift() || 0);

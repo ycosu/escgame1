@@ -99,6 +99,7 @@ function getTeamConfigSnapshot(roomKey) {
     inventoryPenaltyRate: 0.1,
     backlogPenaltyRate: 0.3,
     teamBacklogPenaltyRate: 0.5,
+    replenishmentShockMultiplier: 3,
     ...source,
     totalDays: trial ? 5 : Math.max(1, Number(source.totalDays || 20)),
     shocks: trial ? [] : [...(source.shocks || [])],
@@ -152,11 +153,15 @@ function resolveTeamDay(state) {
   state.totalDays = finalDay;
   const baseLag = Math.max(1, Number(config.lagTime || 1));
   const shocks = state.isTrial ? [] : (Array.isArray(config.shocks) ? config.shocks : []);
-  const getEffectiveLag = (dayNum) => {
-    const shockLag = shocks.filter(shock => Number(shock.round) === Number(dayNum)).reduce((sum, shock) => sum + Math.max(0, Number(shock.lagDelta || 0)), 0);
-    return Math.max(1, baseLag + shockLag);
+  const getShockExtraDays = (dayNum) => {
+    return shocks.filter(shock => Number(shock.round) === Number(dayNum)).reduce((sum, shock) => sum + Math.max(0, Number(shock.lagDelta || 0)), 0);
   };
-  const lag = getEffectiveLag(day);
+  const getEffectiveLag = (dayNum) => {
+    return Math.max(1, baseLag + getShockExtraDays(dayNum));
+  };
+  const shipLag = getEffectiveLag(day);
+  const orderLag = baseLag;
+  const replenishmentMultiplier = Math.max(1, Number(config.replenishmentShockMultiplier || 3));
   const roleStates = state.roleStates || {};
   const updates = {};
 
@@ -196,12 +201,12 @@ function resolveTeamDay(state) {
     const roleState = update.roleState;
     const upstream = ROLES[index + 1];
     const downstream = ROLES[index - 1];
-    if (downstream) roleStates[downstream].incomingShipments.push({ quantity: update.shipped, dueDay: day + lag });
-    if (upstream) roleStates[upstream].incomingOrders.push({ quantity: update.order, dueDay: day + lag });
+    if (downstream) roleStates[downstream].incomingShipments.push({ quantity: update.shipped, dueDay: day + shipLag });
+    if (upstream) roleStates[upstream].incomingOrders.push({ quantity: update.order, dueDay: day + orderLag });
     else {
-      const leg1Delay = lag;
+      const leg1Delay = orderLag;
       const factoryReceiptDay = day + leg1Delay;
-      const leg2Delay = getEffectiveLag(factoryReceiptDay);
+      const leg2Delay = baseLag + (getShockExtraDays(factoryReceiptDay) * replenishmentMultiplier);
       const arrivalDay = factoryReceiptDay + leg2Delay;
       roleState.factoryOrders.push({ quantity: update.order, dueDay: arrivalDay });
     }
@@ -214,7 +219,7 @@ function resolveTeamDay(state) {
     roleState.shortagePenaltyCost = Number((Number(roleState.shortagePenaltyCost || 0) + teamPenalty).toFixed(2));
     roleState.totalCost = Number((Number(roleState.totalCost || 0) + roundCost).toFixed(2));
     roleState.history = Array.isArray(roleState.history) ? roleState.history : [];
-    roleState.history.push({ day, role, arrived: update.shipments.quantity + (role === 'Federal Stockpile' ? update.production.quantity : 0), demand: update.incomingDemand, receivedDemand: update.incomingDemand, shipped: update.shipped, order: update.order, inventory: update.inventory, backorders: update.backlog, lagTime: lag, shortageDay: teamPenalty ? 1 : 0, roundCost });
+    roleState.history.push({ day, role, arrived: update.shipments.quantity + (role === 'Federal Stockpile' ? update.production.quantity : 0), demand: update.incomingDemand, receivedDemand: update.incomingDemand, shipped: update.shipped, order: update.order, inventory: update.inventory, backorders: update.backlog, lagTime: shipLag, shortageDay: teamPenalty ? 1 : 0, roundCost });
   });
 
   state.lastResolvedDay = day;
