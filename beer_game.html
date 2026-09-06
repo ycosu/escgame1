@@ -317,6 +317,20 @@
             font-weight: 700;
         }
 
+        .scene-tutorial-on-image {
+            position: absolute;
+            right: 130px;
+            bottom: 12px;
+            z-index: 8;
+            padding: 9px 14px;
+            font-size: 0.9em;
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.92);
+            border: 1px solid rgba(52, 72, 92, 0.25);
+            color: #274057;
+            font-weight: 700;
+        }
+
         .scene-visual {
             display: none;
             max-width: 980px;
@@ -1613,11 +1627,13 @@
                         <button class="btn btn-primary" onclick="showSetup(false)">🎮 Play Game</button>
                         <button class="btn btn-secondary" onclick="showSetup(true)">🧪 Play Trial</button>
                         <button class="btn btn-secondary" onclick="showAdmin()">🔐 Admin</button>
+                        <button class="btn btn-secondary" onclick="openTutorial()">📘 Tutorial</button>
                     </div>
 
                     <div class="scene-visual">
                         <div class="scene-art">
                             <button class="scene-admin-on-image" onclick="showAdmin()">🔐 Admin</button>
+                            <button class="scene-tutorial-on-image" onclick="openTutorial()">📘 Tutorial</button>
 
                             <svg class="ai-overlay-svg" viewBox="0 0 1200 360" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
                                 <defs>
@@ -3697,6 +3713,10 @@
             document.getElementById('adminAuth').style.display = 'block';
             document.getElementById('adminPanel').classList.remove('active');
             showScreen('adminScreen');
+        }
+
+        function openTutorial() {
+            window.open('beer_game_tutorial.pdf', '_blank', 'noopener,noreferrer');
         }
 
         function showDiagnostic(msg, persist = true) {
