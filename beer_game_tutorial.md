@@ -37,11 +37,13 @@ footer: Emergency Supply Chain Game | Game Tutorial
 
 # Task 
 
-We are experiencing flash flood that has disrupted the normal water supply, creating an urgent need to manage emergency water distribution effectively.
+Flooding has disrupted the normal water supply, creating an urgent need at the Shelters to manage emergency water distribution effectively.
 
 ### Federal Stockpile -> Regional Hubs -> State/Local Hubs -> Shelters
 
 Water moves **downstream** toward Shelters. Orders and requests move **upstream** toward the Federal Stockpile.
+
+The urgent need starts at Shelters. In the first few days, upstream tiers may see little or no incoming demand while orders make their way through the chain. Use that time to understand your role, track your inventory, and prepare for orders to arrive.
 
 > Use the information available to you to make the best order decision you can.
 
@@ -56,7 +58,7 @@ Water moves **downstream** toward Shelters. Orders and requests move **upstream*
 | State/Local Hubs | Supply water to Shelters |
 | Shelters | Meet the people's demand for water |
 
-Each person plays one tier. Your order becomes an incoming request for the tier above you.
+Each person plays one tier. Your order becomes an incoming request for the tier above you. For every tier other than Shelters, the **downstream tier's order is the demand you need to fulfill**.
 
 ---
 
@@ -120,19 +122,41 @@ For example, if your remaining budget is $70 at the end of the game, you receive
 ---
 # Step 4: Submit Your Order
 
-When it is your turn:
+Each day, every tier submits one order:
 
 1. Enter an order from **0 to 1,000** units in the Daily Order Decision field.
 2. Select **SUBMIT**.
-3. Confirm that your order is recorded, then wait for the other tiers.
+3. Confirm that your order is recorded, then wait for the other tiers to submit.
 
-Your submitted order is final for that game day.
+Your submitted order is final for that game day. When everyone has submitted, the next day appears automatically and the order box opens for your next entry.
+
+---
+
+<!-- footer: Emergency Supply Chain Game | Game Tutorial -->
+# Game Screen
+
+<img src="game-screen-guide.JPG" alt="Emergency Supply Chain Game screen with demand, team status, order decision, and supply chain status" style="display:block;width:100%;max-height:620px;object-fit:contain;">
+
+---
+
+<!-- footer: Emergency Supply Chain Game | Game Tutorial -->
+# Reading the Game Screen
+
+| Area | What to use it for |
+|---|---|
+| Message at the top | Shelters see today's demand; flooding notices appear when relevant. |
+| Team Status | Check which tiers have submitted and whether teammates are online. |
+| Daily Order Decision | Enter and submit your order for the current day. |
+| Day, Team, Role, Budget | Confirm your current game status and remaining budget. |
+| Supply Chain Status | Review the **previous day's** order, inventory, backlog, and cost. |
+
+The **Record Sheet** provides your full day-by-day history. Scroll within it to review earlier days; do not refresh the page.
 
 ---
 
 # Example
 
-Use the **Record Sheet** to review what happened on previous game days. 
+Use the **Record Sheet** to review what happened on previous game days. Do **not** refresh the page; scroll down in the Record Sheet to see additional days.
 
 | Day | Demand | Order | Arrived | Shipped | Inventory | Backlog |
 |---:|---:|---:|---:|---:|---:|---:|
@@ -149,7 +173,7 @@ Use the **Record Sheet** to review what happened on previous game days.
 ## Questions before we start?
 
 # Step 5: Complete the Trial
-You will now complete a short trial before the full game begins.
+We will go through the short trial together before the full game begins.
 
 # Step 6: Play the Game
 
