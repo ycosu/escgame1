@@ -128,7 +128,7 @@ Each day, every tier submits one order:
 2. Select **SUBMIT**.
 3. Confirm that your order is recorded, then wait for the other tiers to submit.
 
-Your submitted order is final for that game day. When everyone has submitted, the next day appears automatically and the order box opens for your next entry.
+Your submitted order is final for that game day. When everyone has submitted, the next day appears automatically and the order box opens for your next entry. **Do not refresh the page at any time.**
 
 ---
 
@@ -136,21 +136,6 @@ Your submitted order is final for that game day. When everyone has submitted, th
 # Game Screen
 
 <img src="game-screen-guide.JPG" alt="Emergency Supply Chain Game screen with demand, team status, order decision, and supply chain status" style="display:block;width:100%;max-height:620px;object-fit:contain;">
-
----
-
-<!-- footer: Emergency Supply Chain Game | Game Tutorial -->
-# Reading the Game Screen
-
-| Area | What to use it for |
-|---|---|
-| Message at the top | Shelters see today's demand; flooding notices appear when relevant. |
-| Team Status | Check which tiers have submitted and whether teammates are online. |
-| Daily Order Decision | Enter and submit your order for the current day. |
-| Day, Team, Role, Budget | Confirm your current game status and remaining budget. |
-| Supply Chain Status | Review the **previous day's** order, inventory, backlog, and cost. |
-
-The **Record Sheet** provides your full day-by-day history. Scroll within it to review earlier days; do not refresh the page.
 
 ---
 
