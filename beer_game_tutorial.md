@@ -69,7 +69,7 @@ You are balancing two competing risks:
 - Order too little and unmet requests (demand) become **backorders**.
 - Order too much and unused water remains as **inventory**.
 
-Your aim as a team is to ensurre Shelters have enough water to meet the people's demand.
+Your aim as a team is to ensure Shelters have enough water to meet the people's demand.
 
 ---
 
