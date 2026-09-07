@@ -31,6 +31,10 @@ let resultWriteQueue = Promise.resolve();
 // set-room-node path so the two channels share one consistent state.
 function mergeTeamState(teamKey, incoming) {
   const existing = teamStates.get(teamKey) || {};
+  const existingRoleStates = existing.roleStates || {};
+  const hasStarted = Object.values(existingRoleStates).some(roleState => (
+    Array.isArray(roleState.history) && roleState.history.length > 0
+  ));
   const prevDay = Number(existing.currentDay ?? 0);
   const newDay = Number(incoming.currentDay ?? prevDay);
   if (prevDay > 0 && newDay < prevDay) return existing;
@@ -39,13 +43,17 @@ function mergeTeamState(teamKey, incoming) {
   const roleStates = { ...(existing.roleStates || {}), ...incomingRoleStates };
   const isTrial = String(teamKey).startsWith('TRIAL');
   const serverConfig = getTeamConfigSnapshot(teamKey);
-  const canonicalConfig = existing.gameConfig
-    || (isTrial && globalTrialConfig ? serverConfig : incoming.gameConfig)
-    || serverConfig;
+  const canonicalConfig = hasStarted && existing.gameConfig ? existing.gameConfig : serverConfig;
   const gameConfig = {
     ...serverConfig,
     ...canonicalConfig
   };
+
+  if (!hasStarted) {
+    Object.values(roleStates).forEach(roleState => {
+      roleState.inventory = Math.max(0, Number(gameConfig.initialInventory || 0));
+    });
+  }
 
   Object.keys(existing.roleStates || {}).forEach(role => {
     const existingRole = existing.roleStates[role] || {};
