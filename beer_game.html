@@ -3374,7 +3374,15 @@
 
                 const payload = await response.json();
                 if (!payload || typeof payload !== 'object') return;
-                if (!payload.state || typeof payload.state !== 'object') return;
+                if (!payload.state || typeof payload.state !== 'object') {
+                    // A server-side team reset must also clear this tab's in-memory
+                    // state; otherwise the old session remains visible until reload.
+                    if (game.gameStarted && game.sharedTeamState && typeof game.sharedTeamState === 'object') {
+                        resetGame();
+                        alert('This team session was reset by the administrator. Please start a new game session.');
+                    }
+                    return;
+                }
 
                 const existing = game.sharedTeamState && typeof game.sharedTeamState === 'object'
                     ? game.sharedTeamState
