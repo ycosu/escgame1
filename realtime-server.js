@@ -40,7 +40,13 @@ function mergeTeamState(teamKey, incoming) {
   if (prevDay > 0 && newDay < prevDay) return existing;
   const dayAdvanced = newDay > prevDay;
   const incomingRoleStates = incoming.roleStates || {};
-  const roleStates = { ...(existing.roleStates || {}), ...incomingRoleStates };
+  const roleStates = { ...(existing.roleStates || {}) };
+  // Once created, role balances are calculated only by resolveTeamDay(). A
+  // browser can publish an older snapshot after a round resolves, so accept
+  // incoming state only for roles not yet initialized on the server.
+  Object.entries(incomingRoleStates).forEach(([role, roleState]) => {
+    if (!roleStates[role]) roleStates[role] = roleState;
+  });
   const isTrial = String(teamKey).startsWith('TRIAL');
   const serverConfig = getTeamConfigSnapshot(teamKey);
   const canonicalConfig = hasStarted && existing.gameConfig ? existing.gameConfig : serverConfig;
@@ -54,21 +60,6 @@ function mergeTeamState(teamKey, incoming) {
       roleState.inventory = Math.max(0, Number(gameConfig.initialInventory || 0));
     });
   }
-
-  Object.keys(existing.roleStates || {}).forEach(role => {
-    const existingRole = existing.roleStates[role] || {};
-    const incomingRole = incomingRoleStates[role];
-    if (!incomingRole || newDay > prevDay) return;
-    roleStates[role] = {
-      ...incomingRole,
-      inventoryCostTotal: existingRole.inventoryCostTotal,
-      backlogCostTotal: existingRole.backlogCostTotal,
-      shortagePenaltyCost: existingRole.shortagePenaltyCost,
-      totalCost: existingRole.totalCost,
-      lastRoundCost: existingRole.lastRoundCost,
-      history: existingRole.history
-    };
-  });
 
   const merged = {
     ...existing,
@@ -167,6 +158,13 @@ function resolveTeamDay(state) {
   const getEffectiveLag = (dayNum) => {
     return Math.max(1, baseLag + getShockExtraDays(dayNum));
   };
+  const getExternalDemand = (dayNum) => {
+    if (state.isTrial) return 4;
+    const activeShocks = shocks.filter(shock => Number(shock.round) === Number(dayNum));
+    return activeShocks.length > 0
+      ? Math.max(0, Number(activeShocks[activeShocks.length - 1].demand ?? 8))
+      : 4;
+  };
   const shipLag = getEffectiveLag(day);
   const orderLag = baseLag;
   const replenishmentMultiplier = Math.max(1, Number(config.replenishmentShockMultiplier || 3));
@@ -188,7 +186,7 @@ function resolveTeamDay(state) {
     const shipments = receive(roleState.incomingShipments);
     const information = receive(roleState.incomingOrders);
     const production = receive(roleState.factoryOrders);
-    const incomingDemand = index === 0 ? (state.isTrial ? 4 : (shocks.some(shock => Number(shock.round) === day) ? 8 : 4)) : information.quantity;
+    const incomingDemand = index === 0 ? getExternalDemand(day) : information.quantity;
     const available = Math.max(0, Number(roleState.inventory || 0)) + shipments.quantity + (role === 'Federal Stockpile' ? production.quantity : 0);
     const totalDemand = incomingDemand + Math.max(0, Number(roleState.backorders || 0));
     const shipped = Math.min(available, totalDemand);
@@ -315,7 +313,7 @@ app.get('/api/team/:teamNum/:teamLetter/roster', (req, res) => {
 });
 
 // API endpoint to join team
-app.post('/api/team/:teamNum/:teamLetter/join', (req, res) => {
+app.post('/api/team/:teamNum/:teamLetter/join', async (req, res) => {
   const { teamNum, teamLetter } = req.params;
   const { playerId, name, role, crtAnswer, crtCorrect } = req.body;
   
@@ -330,7 +328,9 @@ app.post('/api/team/:teamNum/:teamLetter/join', (req, res) => {
   let roster = teamRosters.get(teamKey) || [];
   
   // Check if role is already taken by another player
-  const roleAlreadyTaken = roster.some(m => m.playerId !== playerId && m.role === role);
+  const roleAlreadyTaken = roster.some(m => (
+    m.playerId !== playerId && m.role === role && m.online !== false
+  ));
   if (roleAlreadyTaken) {
     console.log(`❌ Role "${role}" already taken in Team ${teamKey}`);
     return res.status(409).json({ error: `Role "${role}" is already taken in this team. Please choose a different role.` });
@@ -353,7 +353,7 @@ app.post('/api/team/:teamNum/:teamLetter/join', (req, res) => {
     });
   }
   
-  teamRosters.set(teamKey, roster);
+  await setTeamRoster(teamKey, roster);
   console.log(`✅ Team ${teamKey} has ${roster.length} members:`, roster.map(m => `${m.name} (${m.role})`));
   res.json({ success: true, roster });
   
@@ -672,6 +672,7 @@ app.post('/api/admin/clear-teams', async (_req, res) => {
 
   try {
     for (const key of keys) {
+      const socketIds = Array.from(io.sockets.adapter.rooms.get(key) || []);
       await setTeamRoster(key, []);
       teamStates.delete(key);
 
@@ -689,8 +690,24 @@ app.post('/api/admin/clear-teams', async (_req, res) => {
       io.to(key).emit('team-submission-update', { teamNum: null, teamLetter: null, role: null, submittedRoles: [] });
       io.to(`team_${key}`).emit(`team-roster-${key}`, []);
 
+      // Prevent an open, pre-reset browser from restoring its old seat through
+      // a heartbeat or state update after the reset completes.
+      socketIds.forEach(socketId => {
+        const socket = io.sockets.sockets.get(socketId);
+        if (socket?.data.roomKey === key) {
+          socket.data.roomKey = null;
+          socket.data.playerId = null;
+          socket.data.playerData = null;
+        }
+      });
+      io.in(key).socketsLeave(key);
+      teamRosters.delete(key);
+      rooms.delete(key);
+
       clearedTeams.push(key);
     }
+
+    await queueActiveStateWrite();
 
     console.log(`✅ Cleared ${clearedTeams.length} team rosters and team states`);
     return res.json({ success: true, cleared: clearedTeams.length, teams: clearedTeams });
@@ -788,6 +805,7 @@ function queueActiveStateWrite() {
     };
     await fs.writeFile(ACTIVE_TEAMS_FILE, JSON.stringify(snapshot), 'utf8');
   }).catch(err => console.warn('Failed to persist active teams:', err.message));
+  return activeStateWriteQueue;
 }
 
 async function loadActiveStateFromDisk() {
@@ -1130,24 +1148,28 @@ io.on('connection', (socket) => {
   });
 });
 
-initRedis()
-  .then(async () => {
-    try {
-      const config = await getGlobalAdminConfig();
-      console.log(`Admin config preload: ${config ? 'found persisted config' : 'no persisted config yet'}`);
-      await loadResultsFromDisk();
-      await loadTrialResultsFromDisk();
-      await loadActiveStateFromDisk();
-      console.log(`Results preload: ${allResults.length} persisted record(s)`);
-    } catch (err) {
-      console.warn('Initial admin config preload failed:', err.message);
-    }
-    const diskOk = await checkDiskPersistence();
-    console.log(`Disk persistence check (.persist mount): ${diskOk ? 'OK — survives redeploys' : 'FAILED — attach a Render Disk at ' + ADMIN_CONFIG_DIR}`);
-  })
-  .finally(() => {
-    server.listen(PORT, () => {
-      console.log(`Realtime server listening on http://localhost:${PORT}`);
+if (require.main === module) {
+  initRedis()
+    .then(async () => {
+      try {
+        const config = await getGlobalAdminConfig();
+        console.log(`Admin config preload: ${config ? 'found persisted config' : 'no persisted config yet'}`);
+        await loadResultsFromDisk();
+        await loadTrialResultsFromDisk();
+        await loadActiveStateFromDisk();
+        console.log(`Results preload: ${allResults.length} persisted record(s)`);
+      } catch (err) {
+        console.warn('Initial admin config preload failed:', err.message);
+      }
+      const diskOk = await checkDiskPersistence();
+      console.log(`Disk persistence check (.persist mount): ${diskOk ? 'OK — survives redeploys' : 'FAILED — attach a Render Disk at ' + ADMIN_CONFIG_DIR}`);
+    })
+    .finally(() => {
+      server.listen(PORT, () => {
+        console.log(`Realtime server listening on http://localhost:${PORT}`);
+      });
     });
-  });
+}
+
+module.exports = { mergeTeamState, resolveTeamDay, teamStates };
 

@@ -1489,6 +1489,23 @@
             white-space: nowrap;
         }
 
+        .record-sheet-table-wrap {
+            max-height: min(55vh, 520px);
+            overflow: auto;
+            border: 1px solid #e5e7eb;
+            border-radius: 6px;
+        }
+
+        .record-sheet-table-wrap .results-table {
+            margin: 0;
+        }
+
+        .record-sheet-table-wrap .results-table th {
+            position: sticky;
+            top: 0;
+            z-index: 1;
+        }
+
         .record-sheet-modal h2 {
             text-align: center;
         }
@@ -2195,20 +2212,22 @@
                 <div class="modal-box record-sheet-modal">
                     <h2>Record sheet</h2>
                     <p id="recordSheetPlayer" style="color:#666;"></p>
-                    <table class="results-table">
-                        <thead>
-                            <tr>
-                                <th>Day</th>
-                                <th>Demand</th>
-                                <th>Order</th>
-                                <th>Arrived</th>
-                                <th>Shipped</th>
-                                <th>Inventory</th>
-                                <th>Backlog</th>
-                            </tr>
-                        </thead>
-                        <tbody id="recordSheetBody"></tbody>
-                    </table>
+                    <div class="record-sheet-table-wrap">
+                        <table class="results-table">
+                            <thead>
+                                <tr>
+                                    <th>Day</th>
+                                    <th>Demand</th>
+                                    <th>Order</th>
+                                    <th>Arrived</th>
+                                    <th>Shipped</th>
+                                    <th>Inventory</th>
+                                    <th>Backlog</th>
+                                </tr>
+                            </thead>
+                            <tbody id="recordSheetBody"></tbody>
+                        </table>
+                    </div>
                     <button class="btn btn-primary record-sheet-close" onclick="closeRecordSheet()">Close</button>
                 </div>
             </div>
@@ -2273,9 +2292,9 @@
                                     <small>Multiplies disaster lag for factory replenishment back to Federal Stockpile.</small>
                                 </div>
                                 <div class="form-group">
-                                    <label for="adminShockSchedule">Shock Schedule (round:+lag days)</label>
-                                    <textarea id="adminShockSchedule" rows="6" placeholder="3:1&#10;4:2&#10;5:1&#10;8:2&#10;10:1"></textarea>
-                                    <small>Each value adds days to the base lag. Example: 3:2 means add 2 days on Round 3.</small>
+                                    <label for="adminShockSchedule">Disaster Schedule (day:demand:additional lag)</label>
+                                    <textarea id="adminShockSchedule" rows="6" placeholder="1:8:1&#10;4:12:1"></textarea>
+                                    <small>Example: 1:8:1 sets Day 1 demand to 8 and adds 1 day to the base lag. Normal demand is 4.</small>
                                 </div>
                             </div>
                             <div class="button-row" style="margin-top: 8px;">
@@ -2430,13 +2449,13 @@
             teamBacklogPenaltyRate: DEFAULT_TEAM_BACKLOG_PENALTY,
             replenishmentShockMultiplier: DEFAULT_REPLENISHMENT_SHOCK_MULTIPLIER,
             shocks: [
-                { round: 3, lagDelta: 1 },
-                { round: 4, lagDelta: 2 },
-                { round: 5, lagDelta: 1 },
-                { round: 8, lagDelta: 2 },
-                { round: 10, lagDelta: 1 }
+                { round: 3, demand: 8, lagDelta: 1 },
+                { round: 4, demand: 8, lagDelta: 2 },
+                { round: 5, demand: 8, lagDelta: 1 },
+                { round: 8, demand: 8, lagDelta: 2 },
+                { round: 10, demand: 8, lagDelta: 1 }
             ],
-            shockScheduleText: '3:1\n4:2\n5:1\n8:2\n10:1',
+            shockScheduleText: '3:8:1\n4:8:2\n5:8:1\n8:8:2\n10:8:1',
             updatedAt: null
         };
 
@@ -2445,6 +2464,7 @@
             return shocks
                 .map(s => ({
                     round: Math.max(1, parseInt(s.round, 10) || 0),
+                    demand: Math.max(0, parseInt(s.demand ?? 8, 10) || 0),
                     lagDelta: Math.max(0, parseInt(s.lagDelta, 10) || 0)
                 }))
                 .filter(s => s.round > 0)
@@ -2453,7 +2473,7 @@
 
         function serializeShockSchedule(shocks) {
             return normalizeShockList(shocks)
-                .map(s => `${s.round}:${s.lagDelta}`)
+                .map(s => `${s.round}:${s.demand}:${s.lagDelta}`)
                 .join('\n');
         }
 
@@ -2467,8 +2487,8 @@
             const invalidLines = [];
 
             lines.forEach(line => {
-                // Accept round:lagDelta. Legacy round-only entries are treated as lagDelta=0.
-                const match = line.match(/^(\d+)(?:\s*[:,-]\s*(\d+))?$/);
+                // Accept day:demand:lagDelta. Legacy day:lagDelta entries retain demand 8.
+                const match = line.match(/^(\d+)\s*[:,-]\s*(\d+)(?:\s*[:,-]\s*(\d+))?$/);
                 if (!match) {
                     invalidLines.push(line);
                     return;
@@ -2476,7 +2496,8 @@
 
                 shocks.push({
                     round: parseInt(match[1], 10),
-                    lagDelta: Math.max(0, parseInt(match[2] || '0', 10) || 0)
+                    demand: Math.max(0, parseInt(match[3] ? match[2] : '8', 10) || 0),
+                    lagDelta: Math.max(0, parseInt(match[3] || match[2], 10) || 0)
                 });
             });
 
@@ -2658,12 +2679,21 @@
         function getDisasterWarning(dayNumber) {
             const activeShocks = getActiveShocks(dayNumber);
             if (activeShocks.length === 0) return '';
-            return '🚨 There is a disaster today.';
+            return '🚨 There is flooding in the shelter area today.';
+        }
+
+        function getPreviousDayFloodingWarning(dayNumber) {
+            const previousDayShocks = getActiveShocks(Number(dayNumber) - 1);
+            if (previousDayShocks.length === 0) return '';
+            return '🚨 There was flooding in the shelter area yesterday.';
         }
 
         function getExternalDemand(dayNumber) {
             if (game.isTrial) return 4;
-            return getActiveShocks(dayNumber).length > 0 ? 8 : 4;
+            const activeShocks = getActiveShocks(dayNumber);
+            return activeShocks.length > 0
+                ? Math.max(0, Number(activeShocks[activeShocks.length - 1].demand ?? 8))
+                : 4;
         }
 
         function getCostRates() {
@@ -2861,7 +2891,8 @@
             submittedThisRound: false,
             submittedRoles: [],
             submissionSyncTimer: null,
-            teamStateSyncTimer: null
+            teamStateSyncTimer: null,
+            serverTeamStateSeen: false
         };
 
         function hasRealtimeClient() {
@@ -3142,6 +3173,7 @@
                     if (game.gameStarted) updateGameDisplay();
                     return;
                 }
+                game.serverTeamStateSeen = true;
                 const existing = game.sharedTeamState && typeof game.sharedTeamState === 'object'
                     ? game.sharedTeamState
                     : {};
@@ -3377,12 +3409,13 @@
                 if (!payload.state || typeof payload.state !== 'object') {
                     // A server-side team reset must also clear this tab's in-memory
                     // state; otherwise the old session remains visible until reload.
-                    if (game.gameStarted && game.sharedTeamState && typeof game.sharedTeamState === 'object') {
+                    if (game.gameStarted && game.serverTeamStateSeen) {
                         resetGame();
                         alert('This team session was reset by the administrator. Please start a new game session.');
                     }
                     return;
                 }
+                game.serverTeamStateSeen = true;
 
                 const existing = game.sharedTeamState && typeof game.sharedTeamState === 'object'
                     ? game.sharedTeamState
@@ -3812,7 +3845,7 @@
             const scheduleInput = document.getElementById('adminShockSchedule').value;
             const parsedSchedule = parseShockSchedule(scheduleInput);
             if (parsedSchedule.invalidLines.length > 0) {
-                alert(`Invalid shock lines: ${parsedSchedule.invalidLines.join(', ')}. Use round:lagDelta.`);
+                alert(`Invalid disaster lines: ${parsedSchedule.invalidLines.join(', ')}. Use day:demand:additionalLag.`);
                 return;
             }
 
@@ -5075,10 +5108,11 @@
                 msg += `<div class="message-box info">Demand today: ${demandToday}</div>`;
             }
 
-            // Realistic bullwhip: only Shelters (the start of demand) feel the
-            // disaster directly. Upstream tiers must infer the surge from incoming orders.
-            const disasterWarning = getDisasterWarning(dayNumber);
-            if (disasterWarning && p.role === 'Shelters') {
+            // Shelters learn about flooding immediately; upstream tiers learn the next day.
+            const disasterWarning = p.role === 'Shelters'
+                ? getDisasterWarning(dayNumber)
+                : getPreviousDayFloodingWarning(dayNumber);
+            if (disasterWarning) {
                 msg += '<div class="message-box warning">' + disasterWarning + '</div>';
             }
 
@@ -5123,7 +5157,7 @@
                 const startingBacklog = Math.max(0, Number(state.backorders || 0));
                 const orderPlaced = Math.max(0, Number(state.pendingOrder ?? state.order ?? 0));
                 // Classic Beer Game demand flow:
-                // Shelters face external demand (4 normally, 8 on disaster days).
+                // Shelters face external demand (4 normally, configured during disasters).
                 // Every upstream tier faces the demand placed by its downstream customer,
                 // which arrives through the order lag queue (incomingOrders).
                 const incomingOrder = (role === 'Shelters')
@@ -5689,6 +5723,7 @@
             game.teamRoster = [];
             game.teamMessages = [];
             game.sharedTeamState = null;
+            game.serverTeamStateSeen = false;
             game.lastShockWarningDay = null;
             game.submittedThisRound = false;
             game.submittedRoles = [];
